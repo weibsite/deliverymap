@@ -3,232 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>尋狗地圖 - 像素探索版</title>
-    <!-- Tailwind CSS -->
+    <title>尋狗地圖 - 本機伺服器版</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #2d3748;
-            font-family: 'Courier New', Courier, monospace;
-        }
-        #map-container {
-            position: relative;
-            width: 100vw;
-            height: 100vh;
-        }
-        #map {
-            width: 100%;
-            height: 100%;
-            background-color: #1a202c;
-        }
-        
-        .leaflet-tile {
-            filter: contrast(1.3) saturate(1.2) sepia(0.2);
-            image-rendering: pixelated; 
-        }
-
-        /* --- 像素復古 UI 元件 --- */
-        .pixel-panel {
-            background-color: white;
-            border: 4px solid #1a202c;
-            box-shadow: 6px 6px 0px #1a202c;
-            border-radius: 0px !important;
-        }
-        
-        .pixel-btn {
-            background-color: #f59e0b;
-            color: #1a202c;
-            border: 4px solid #1a202c;
-            box-shadow: 6px 6px 0px #1a202c;
-            border-radius: 0px !important;
-            transition: all 0.1s;
-            text-transform: uppercase;
-            font-weight: 900;
-            cursor: pointer;
-        }
-        .pixel-btn:active {
-            transform: translate(4px, 4px);
-            box-shadow: 2px 2px 0px #1a202c;
-        }
-        
-        .pixel-input {
-            border: 4px solid #1a202c;
-            border-radius: 0px !important;
-            outline: none;
-            font-weight: bold;
-        }
-        .pixel-input:focus {
-            background-color: #fef3c7;
-        }
-
-        .custom-div-icon {
-            background: transparent !important;
-            border: none !important;
-            overflow: visible !important; 
-        }
-        
-        .user-label-container {
-            position: absolute;
-            bottom: 4px;
-            left: -60px;
-            width: 120px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            pointer-events: none;
-        }
-        
-        .user-avatar-pixel {
-            width: 16px;
-            height: 16px;
-            border: 3px solid #1a202c;
-            box-sizing: border-box;
-        }
-        
-        .user-name-tag {
-            background: white;
-            padding: 2px 6px;
-            border: 2px solid #1a202c;
-            font-size: 12px;
-            font-weight: 900;
-            white-space: nowrap;
-            margin-bottom: 6px;
-        }
-
-        /* 修正閃爍動畫，避免完全透明變成隱形 */
-        .blinking-red-pixel {
-            animation: blink-pixel 1s infinite alternate;
-        }
-
-        @keyframes blink-pixel {
-            0% { background-color: #ef4444; transform: scale(1); }
-            100% { background-color: #fca5a5; transform: scale(1.3); }
-        }
-
-        /* 走失中心點擴散波紋動畫 */
-        @keyframes pulse-square {
-            0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
-            100% { transform: scale(4); opacity: 0; border-width: 1px; }
-        }
-        .center-pulse-square {
-            position: absolute;
-            left: -16px;
-            top: -16px;
-            width: 32px;
-            height: 32px;
-            border: 4px solid #ef4444;
-            box-sizing: border-box;
-            animation: pulse-square 2s infinite linear;
-            pointer-events: none;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #2d3748; font-family: 'Courier New', Courier, monospace; }
+        #map-container { position: relative; width: 100vw; height: 100vh; }
+        #map { width: 100%; height: 100%; background-color: #1a202c; }
+        .leaflet-tile { filter: contrast(1.3) saturate(1.2) sepia(0.2); image-rendering: pixelated; }
+        .pixel-panel { background-color: white; border: 4px solid #1a202c; box-shadow: 6px 6px 0px #1a202c; border-radius: 0px !important; }
+        .pixel-btn { background-color: #f59e0b; color: #1a202c; border: 4px solid #1a202c; box-shadow: 6px 6px 0px #1a202c; border-radius: 0px !important; transition: all 0.1s; text-transform: uppercase; font-weight: 900; cursor: pointer; }
+        .pixel-btn:active { transform: translate(4px, 4px); box-shadow: 2px 2px 0px #1a202c; }
+        .pixel-input { border: 4px solid #1a202c; border-radius: 0px !important; outline: none; font-weight: bold; }
+        .pixel-input:focus { background-color: #fef3c7; }
+        .custom-div-icon { background: transparent !important; border: none !important; overflow: visible !important; }
+        .user-label-container { position: absolute; bottom: 4px; left: -60px; width: 120px; display: flex; flex-direction: column; align-items: center; pointer-events: none; }
+        .user-avatar-pixel { width: 16px; height: 16px; border: 3px solid #1a202c; box-sizing: border-box; }
+        .user-name-tag { background: white; padding: 2px 6px; border: 2px solid #1a202c; font-size: 12px; font-weight: 900; white-space: nowrap; margin-bottom: 6px; }
+        .pixel-popup .leaflet-popup-content-wrapper { background-color: white; border: 4px solid #1a202c; border-radius: 0; box-shadow: 4px 4px 0px #1a202c; padding: 0; }
+        .pixel-popup .leaflet-popup-tip-container { display: none; }
+        .blinking-red-pixel { animation: blink-pixel 1s infinite alternate; }
+        @keyframes blink-pixel { 0% { background-color: #ef4444; transform: scale(1); } 100% { background-color: #fca5a5; transform: scale(1.3); } }
+        @keyframes pulse-square { 0% { transform: scale(0.5); opacity: 1; border-width: 4px; } 100% { transform: scale(4); opacity: 0; border-width: 1px; } }
+        .center-pulse-square { position: absolute; left: -16px; top: -16px; width: 32px; height: 32px; border: 4px solid #ef4444; box-sizing: border-box; animation: pulse-square 2s infinite linear; pointer-events: none; }
     </style>
 </head>
 <body>
 
-    <div id="map-container">
-        <div id="map"></div>
-    </div>
+    <div id="map-container"><div id="map"></div></div>
 
-    <!-- 啟動遮罩層 -->
     <div id="startup-overlay" class="absolute inset-0 z-[3000] bg-black/70 flex items-center justify-center transition-opacity duration-300">
         <div class="pixel-panel p-6 w-11/12 max-w-md text-center transform transition-transform">
             <h2 class="text-2xl font-bold text-gray-900 mb-2">尋狗地圖</h2>
             <p class="text-gray-700 mb-4 text-sm font-bold">▶ 像素迷霧探索版 ◀<br><br>請輸入稱呼並允許定位，您的移動將以像素方塊驅散周圍迷霧！</p>
-            
-            <input type="text" id="user-name-input" placeholder="代號 (留空則隨機)" class="pixel-input w-full p-3 text-lg mb-4 text-center text-gray-900" />
-            
-            <button id="master-start-btn" class="pixel-btn w-full py-4 px-4 text-lg">
-                START [授權定位]
-            </button>
-            
+            <input type="text" id="user-name-input" maxlength="15" placeholder="代號 (留空則隨機)" class="pixel-input w-full p-3 text-lg mb-4 text-center text-gray-900" />
+            <button id="master-start-btn" class="pixel-btn w-full py-4 px-4 text-lg">START [授權定位]</button>
             <div id="error-msg" class="hidden"></div>
         </div>
     </div>
 
-    <!-- 自訂訊息對話框 (取代 alert) -->
-    <div id="custom-modal" class="hidden absolute inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
-        <div class="pixel-panel p-6 w-full max-w-sm text-center">
-            <p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
-            <button id="custom-modal-btn" class="pixel-btn w-full py-2">確定</button>
-        </div>
-    </div>
+    <div id="custom-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p><button id="custom-modal-btn" class="pixel-btn w-full py-2 bg-blue-500 text-white">確定</button></div></div>
+    <div id="input-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><h3 id="input-modal-title" class="text-gray-900 font-bold mb-4"></h3><textarea id="input-modal-text" class="pixel-input w-full p-2 mb-4 h-32" placeholder="請輸入內容..."></textarea><div class="flex gap-2"><button id="input-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="input-submit-btn" class="pixel-btn flex-1 py-2 bg-blue-500 text-white">確定</button></div></div></div>
+    <div id="confirm-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><p id="confirm-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p><div class="flex gap-2"><button id="confirm-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="confirm-ok-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">確定</button></div></div></div>
+    <div id="admin-login-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><h3 class="text-gray-900 font-bold mb-4 text-xl">👑 管理員登入</h3><input type="password" id="admin-pwd-input" class="pixel-input w-full p-3 mb-4 text-center font-sans" placeholder="請輸入密碼"><div class="flex gap-2"><button id="admin-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="admin-submit-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">登入</button></div></div></div>
 
-    <!-- 常駐 UI 元件 -->
-    <div id="status-toast" class="absolute top-4 right-4 z-[2000] pixel-panel p-2 text-sm font-bold text-gray-900 hidden flex items-center gap-2">
-        <div class="w-3 h-3 bg-green-500 border-2 border-black" id="sync-ping"></div>
-        <span id="toast-text">連線中...</span>
-    </div>
+    <div id="status-toast" class="absolute top-4 right-4 z-[2000] pixel-panel p-2 text-sm font-bold text-gray-900 hidden flex items-center gap-2"><div class="w-3 h-3 bg-red-500 border-2 border-black" id="sync-ping"></div><span id="toast-text">斷線中...</span></div>
+    
+    <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md"><div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm flex justify-between items-center"><span>📢 最新公告</span></div><div id="announcement-text" class="leading-relaxed mt-2 whitespace-pre-wrap">載入中...</div></div>
+    
+    <div id="admin-panel" class="absolute top-4 left-4 z-[2000] pixel-panel p-2 hidden bg-white/95 w-32 border-red-500 shadow-[6px_6px_0px_rgba(239,68,68,1)]"><div class="text-red-600 mb-2 border-b-2 border-black pb-1 text-xs font-bold text-center">👑 管理員工具</div><button id="add-sighting-btn" class="pixel-btn w-full p-2 mb-2 text-xs bg-green-500 text-white">📍 增設出沒點</button><button id="update-announce-btn" class="pixel-btn w-full p-2 text-xs bg-purple-500 text-white">📢 更新公告</button></div>
 
-    <!-- 系統公告/澄清訊息 (右上角) -->
-    <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md">
-        <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm">📢 飼主澄清公告</div>
-        <div class="leading-relaxed mt-2">
-            之前有其他的狗遺失<br>
-            小鳳是我姑姑的狗 我是幫找<br>
-            嘎嘎是我大學收養 寄養在同學家被弄丟
-        </div>
-    </div>
+    <button id="force-upload-btn" class="absolute bottom-56 left-4 z-[2000] pixel-btn p-2 text-xs hidden">📤 強制打卡</button>
+    <button id="nav-pin-btn" class="absolute bottom-44 left-4 z-[2000] pixel-btn p-2 text-xs hidden">📍 導航標記</button>
+    <button id="toggle-fog-btn" class="absolute bottom-32 left-4 z-[2000] pixel-btn p-2 text-xs hidden">👁️ 關閉迷霧</button>
+    <button id="spectator-btn" class="absolute bottom-20 left-4 z-[2000] pixel-btn p-2 text-xs hidden">觀看模式</button>
+    <button id="locate-btn" class="absolute bottom-8 left-4 z-[2000] pixel-btn p-3 hidden flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="3" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" /></svg></button>
 
-    <!-- 觀看模式按鈕 (左下) -->
-    <button id="spectator-btn" class="absolute bottom-24 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
-        觀看模式
-    </button>
+    <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">版權所有，桃園八德阿偉製作<br><a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a><div class="mt-1 pt-1 border-t-2 border-gray-300 text-gray-400 cursor-pointer hover:text-red-500 text-[10px]" id="admin-login-trigger">管理員登入</div></div>
 
-    <button id="locate-btn" class="absolute bottom-8 left-4 z-[2000] pixel-btn p-3 hidden flex items-center justify-center">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
-            <circle cx="12" cy="12" r="3" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
-        </svg>
-    </button>
-
-    <!-- 版權宣告 (右下角) -->
-    <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">
-        版權所有，桃園八德阿偉製作<br>
-        <a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a>
-    </div>
-
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- App Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
+    <script>
         // --- 狀態變數 ---
-        let map, markersLayer;
-        let auth, db, appId, currentUser;
+        let map, markersLayer, sightingsLayer;
+        let ws; // WebSocket 實例
+        let myUid = localStorage.getItem('dogMap_UID');
+        if (!myUid) {
+            myUid = 'usr_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('dogMap_UID', myUid);
+        }
         
         let currentUserName = "";
         let dbUserColor = ""; 
         let localHistory = []; 
         let lastSavedPos = null;
         let allUsersData = {};
+        let allSightings = {};
         
         let watchId = null;
         let isSystemReady = false;
-        let isOfflineMode = false;
         let isSpectatorMode = false; 
+        let isAdmin = false;
+        let isFogVisible = true;
+        let navMarker = null;
 
         // 迷霧系統變數
-        let fogCanvas, fogCtx;
-        let lowResCanvas, lowResCtx;
-        let tempCanvas, tempCtx;
+        let fogCanvas, fogCtx, lowResCanvas, lowResCtx, tempCanvas, tempCtx;
         let fogRenderPending = false;
         const FOG_SCALE = 0.08;
-        
-        // 走失中心點座標
         const LOST_DOG_CENTER = [23.7509678, 120.3995609];
 
-        // --- DOM 元素 ---
+        // --- DOM 元素 (同前) ---
         const startupOverlay = document.getElementById('startup-overlay');
         const nameInput = document.getElementById('user-name-input');
         const masterStartBtn = document.getElementById('master-start-btn');
@@ -240,238 +105,246 @@
         const customModal = document.getElementById('custom-modal');
         const customModalText = document.getElementById('custom-modal-text');
         const customModalBtn = document.getElementById('custom-modal-btn');
+        const toggleFogBtn = document.getElementById('toggle-fog-btn');
+        const navPinBtn = document.getElementById('nav-pin-btn');
+        const forceUploadBtn = document.getElementById('force-upload-btn');
+        const adminLoginTrigger = document.getElementById('admin-login-trigger');
+        const adminPanel = document.getElementById('admin-panel');
+        const addSightingBtn = document.getElementById('add-sighting-btn');
+        const updateAnnounceBtn = document.getElementById('update-announce-btn');
 
-        // --- 自訂 Modal 邏輯取代 alert ---
-        function showModal(msg) {
-            customModalText.innerText = msg;
-            customModal.classList.remove('hidden');
+        // --- 工具 ---
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, ''');
+        }
+        function showModal(msg) { customModalText.innerText = msg; customModal.classList.remove('hidden'); }
+        customModalBtn.addEventListener('click', () => { customModal.classList.add('hidden'); });
+
+        function showInputModal(title, placeholder, defaultValue, onSubmit) {
+            document.getElementById('input-modal-title').innerText = title;
+            const textInput = document.getElementById('input-modal-text');
+            textInput.placeholder = placeholder; textInput.value = defaultValue;
+            document.getElementById('input-modal').classList.remove('hidden');
+            const submitBtn = document.getElementById('input-submit-btn');
+            const cancelBtn = document.getElementById('input-cancel-btn');
+            const newSubmit = submitBtn.cloneNode(true), newCancel = cancelBtn.cloneNode(true);
+            submitBtn.parentNode.replaceChild(newSubmit, submitBtn);
+            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            newSubmit.addEventListener('click', () => {
+                const val = document.getElementById('input-modal-text').value.trim();
+                if(val) { document.getElementById('input-modal').classList.add('hidden'); onSubmit(val); } 
+                else { showModal("內容不能為空白！"); }
+            });
+            newCancel.addEventListener('click', () => { document.getElementById('input-modal').classList.add('hidden'); });
         }
 
-        customModalBtn.addEventListener('click', () => {
-            customModal.classList.add('hidden');
-        });
+        function showConfirm(msg, onConfirm) {
+            document.getElementById('confirm-modal-text').innerText = msg;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            const okBtn = document.getElementById('confirm-ok-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            const newOk = okBtn.cloneNode(true), newCancel = cancelBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOk, okBtn);
+            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            newOk.addEventListener('click', () => { document.getElementById('confirm-modal').classList.add('hidden'); onConfirm(); });
+            newCancel.addEventListener('click', () => { document.getElementById('confirm-modal').classList.add('hidden'); });
+        }
 
         function generateRandomColor() {
             const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
             return colors[Math.floor(Math.random() * colors.length)];
         }
 
-        // --- 1. 初始化系統 ---
+        // --- 1. WebSocket 與 初始化 ---
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                isSystemReady = true;
+                document.getElementById('sync-ping').style.backgroundColor = '#10b981';
+                toastText.innerText = "連線成功";
+                if(localHistory.length > 0) saveLocationToServer(); // 重新連線時補傳
+            };
+
+            ws.onmessage = (event) => {
+                const response = JSON.parse(event.data);
+                if (response.type === 'sync') {
+                    allUsersData = response.data.locations;
+                    allSightings = response.data.sightings;
+                    document.getElementById('announcement-text').innerHTML = escapeHTML(response.data.announcements.current).replace(/\n/g, '<br>');
+                    renderMap();
+                    renderSightings();
+                }
+            };
+
+            ws.onclose = () => {
+                isSystemReady = false;
+                document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
+                toastText.innerText = "斷線重連中...";
+                setTimeout(connectWebSocket, 3000); // 斷線自動重連
+            };
+        }
+
         async function initSystem() {
-            // 初始化時直接定位在走失中心點
             map = L.map('map', { zoomControl: false }).setView(LOST_DOG_CENTER, 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
-            
             markersLayer = L.layerGroup().addTo(map);
+            sightingsLayer = L.layerGroup().addTo(map);
 
-            // --- 標記走失中心點 ---
+            map.on('popupopen', function(e) {
+                const popupNode = e.popup._contentNode;
+                const deleteBtn = popupNode.querySelector('.admin-delete-btn');
+                if (deleteBtn && isAdmin) {
+                    deleteBtn.addEventListener('click', () => {
+                        const id = deleteBtn.getAttribute('data-id');
+                        showConfirm("確定要永久刪除這個出沒紀錄嗎？", () => {
+                            if(isSystemReady) {
+                                ws.send(JSON.stringify({ type: "delete_sighting", id: id }));
+                                showModal("✅ 刪除指令已送出！");
+                                map.closePopup();
+                            }
+                        });
+                    });
+                }
+            });
+
             const centerIcon = L.divIcon({
                 className: 'custom-div-icon',
-                html: `
-                    <div style="position: absolute;">
-                        <div class="center-pulse-square"></div>
-                    </div>
-                    <div class="user-label-container" style="bottom: 12px;">
-                        <div class="user-name-tag pixel-panel" style="color: white; background-color: #ef4444; border-color: #1a202c; z-index: 10;">📍 走失中心</div>
-                        <div style="font-size: 24px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐕</div>
-                    </div>
-                `,
-                iconSize: [0, 0],
-                iconAnchor: [0, 0]
+                html: `<div style="position: absolute;"><div class="center-pulse-square"></div></div><div class="user-label-container" style="bottom: 12px;"><div class="user-name-tag pixel-panel" style="color: white; background-color: #ef4444; border-color: #1a202c; z-index: 10;">📍 走失中心</div><div style="font-size: 24px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐕</div></div>`,
+                iconSize: [0, 0], iconAnchor: [0, 0]
             });
             L.marker(LOST_DOG_CENTER, { icon: centerIcon, zIndexOffset: 100 }).addTo(map);
             
-            map.createPane('fogPane');
-            map.getPane('fogPane').style.zIndex = 450; 
-            map.getPane('fogPane').style.pointerEvents = 'none';
-
+            map.createPane('fogPane'); map.getPane('fogPane').style.zIndex = 450; map.getPane('fogPane').style.pointerEvents = 'none';
             initFogSystem();
+            setInterval(renderMap, 15000);
 
-            map.on('locationfound', onLocationFound);
-            map.on('locationerror', onLocationError);
-            setInterval(renderMap, 15000); 
-
-            let firebaseConfig = {
-                apiKey: "AIzaSyCY_WA9GnVHKLQnLyaJaRh5SpQa8P3ceOo",
-                authDomain: "finddog-e89c3.firebaseapp.com",
-                projectId: "finddog-e89c3",
-                storageBucket: "finddog-e89c3.firebasestorage.app",
-                messagingSenderId: "409601620505",
-                appId: "1:409601620505:web:e7a30042d923547c514888",
-                measurementId: "G-WHVQCY3P4H"
-            };
-
-            try {
-                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
-                    firebaseConfig = JSON.parse(__firebase_config);
-                }
-            } catch(e) { console.warn("Firebase config parsing error"); }
-
-            if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                
-                appId = typeof __app_id !== 'undefined' ? __app_id : 'my-global-dog-map-room';
-
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) {
-                        console.error("Auth Error", e);
-                    }
-                };
-                
-                await initAuth();
-
-                onAuthStateChanged(auth, (user) => {
-                    if (user) {
-                        currentUser = user;
-                        isSystemReady = true;
-                        listenToAllLocations();
-                        checkLocalSetupAndStart();
-                    }
-                });
-            } else {
-                isOfflineMode = true;
-                document.getElementById('sync-ping').style.backgroundColor = '#f59e0b';
-                checkLocalSetupAndStart();
-            }
+            // 啟動 WebSocket 連線
+            connectWebSocket();
+            checkLocalSetupAndStart();
         }
 
-        // --- 8-bit 像素迷霧系統 ---
+        // --- 管理員系統 ---
+        adminLoginTrigger.addEventListener('click', () => {
+            document.getElementById('admin-login-modal').classList.remove('hidden');
+            document.getElementById('admin-pwd-input').value = "";
+        });
+        document.getElementById('admin-cancel-btn').addEventListener('click', () => { document.getElementById('admin-login-modal').classList.add('hidden'); });
+        document.getElementById('admin-submit-btn').addEventListener('click', () => {
+            const pwd = document.getElementById('admin-pwd-input').value.trim();
+            const targetHash = "=kDM2A0N4ImQ"; 
+            const inputHash = btoa(pwd).split('').reverse().join('');
+            if (inputHash === targetHash) {
+                isAdmin = true;
+                document.getElementById('admin-login-modal').classList.add('hidden');
+                adminLoginTrigger.classList.add('hidden');
+                adminPanel.classList.remove('hidden');
+                renderSightings(); 
+                showModal("登入成功！已啟用管理員模式。");
+            } else { showModal("密碼錯誤，請重新確認。"); }
+        });
+
+        addSightingBtn.addEventListener('click', () => {
+            if(!isAdmin) return;
+            showInputModal("📍 新增疑似出沒點", "請詳細描述此事件點...", "", (desc) => {
+                showModal("📍 請在地圖上【點擊】發生該事件的精確位置！");
+                map.once('click', (e) => {
+                    if(isSystemReady) {
+                        ws.send(JSON.stringify({ type: "add_sighting", data: { lat: e.latlng.lat, lng: e.latlng.lng, description: desc, timestamp: Date.now() }}));
+                        showModal("✅ 成功新增事件點！");
+                    }
+                });
+            });
+        });
+
+        updateAnnounceBtn.addEventListener('click', () => {
+            if(!isAdmin) return;
+            let currentRawText = document.getElementById('announcement-text').innerHTML.replace(/<br\s*[\/]?>/gi, '\n').trim();
+            if(currentRawText === "載入中...") currentRawText = "";
+            showInputModal("📢 更新全域公告", "請輸入最新的公告內容...", currentRawText, (text) => {
+                if(isSystemReady) {
+                    ws.send(JSON.stringify({ type: "update_announcement", data: text }));
+                    showModal("✅ 公告更新指令已送出！");
+                }
+            });
+        });
+
+        function renderSightings() {
+            if (!sightingsLayer) return;
+            sightingsLayer.clearLayers();
+            Object.keys(allSightings).forEach(id => {
+                const data = allSightings[id];
+                const safeDesc = escapeHTML(data.description);
+                const d = new Date(data.timestamp);
+                const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=$${data.lat},${data.lng}`;
+
+                const icon = L.divIcon({ className: 'custom-div-icon', html: `<div class="user-label-container" style="bottom: 12px;"><div class="user-name-tag pixel-panel" style="color: #1a202c; background-color: #fef08a; border-color: #1a202c; animation: blink-pixel 2s infinite alternate;">⚠️ 疑似出沒</div><div style="font-size: 28px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐾</div></div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
+                const marker = L.marker([data.lat, data.lng], { icon, zIndexOffset: 3000 }).addTo(sightingsLayer);
+                
+                const adminDeleteHtml = isAdmin ? `<button data-id="${id}" class="admin-delete-btn mt-3 p-1 border-2 border-red-500 text-xs text-red-500 hover:bg-red-500 hover:text-white transition-colors w-full text-center cursor-pointer font-bold">🗑️ 管理員：刪除此紀錄</button>` : '';
+                marker.bindPopup(`<div class="p-2 w-48 font-bold text-gray-900"><div class="border-b-2 border-black pb-1 mb-2 text-sm text-blue-600">🕒 時間：${dateStr}</div><div class="text-sm mb-4 whitespace-pre-wrap leading-relaxed">${safeDesc}</div><a href="${gmapsUrl}" target="_blank" class="pixel-btn block text-center py-2 text-xs bg-blue-500 text-white shadow-[4px_4px_0px_#1a202c] no-underline">🚀 開啟 Google 導航</a>${adminDeleteHtml}</div>`, { className: 'pixel-popup', closeButton: true, offset: [0, -30] });
+            });
+        }
+
+        // --- 迷霧渲染 (同前) ---
         function initFogSystem() {
-            fogCanvas = document.createElement('canvas');
-            map.getPane('fogPane').appendChild(fogCanvas);
-            fogCtx = fogCanvas.getContext('2d');
-            
-            lowResCanvas = document.createElement('canvas');
-            lowResCtx = lowResCanvas.getContext('2d');
-
-            tempCanvas = document.createElement('canvas');
-            tempCtx = tempCanvas.getContext('2d');
-
-            function resizeAndPositionCanvas() {
-                fogCanvas.width = window.innerWidth;
-                fogCanvas.height = window.innerHeight;
-                const topLeft = map.containerPointToLayerPoint([0, 0]);
-                L.DomUtil.setPosition(fogCanvas, topLeft);
-                requestFogRender();
-            }
-
-            window.addEventListener('resize', resizeAndPositionCanvas);
-            map.on('move', resizeAndPositionCanvas);
-            map.on('zoom', resizeAndPositionCanvas);
-            
+            fogCanvas = document.createElement('canvas'); map.getPane('fogPane').appendChild(fogCanvas); fogCtx = fogCanvas.getContext('2d');
+            lowResCanvas = document.createElement('canvas'); lowResCtx = lowResCanvas.getContext('2d');
+            tempCanvas = document.createElement('canvas'); tempCtx = tempCanvas.getContext('2d');
+            function resizeAndPositionCanvas() { fogCanvas.width = window.innerWidth; fogCanvas.height = window.innerHeight; const topLeft = map.containerPointToLayerPoint([0, 0]); L.DomUtil.setPosition(fogCanvas, topLeft); requestFogRender(); }
+            window.addEventListener('resize', resizeAndPositionCanvas); map.on('move', resizeAndPositionCanvas); map.on('zoom', resizeAndPositionCanvas);
             resizeAndPositionCanvas();
         }
-
-        function requestFogRender() {
-            if (!fogRenderPending) {
-                fogRenderPending = true;
-                requestAnimationFrame(() => {
-                    renderFog();
-                    fogRenderPending = false;
-                });
-            }
-        }
-
+        function requestFogRender() { if (!fogRenderPending) { fogRenderPending = true; requestAnimationFrame(() => { if(isFogVisible) renderFog(); fogRenderPending = false; }); } }
         function renderFog() {
-            if (!map || !fogCtx) return;
-            
-            const w = Math.ceil(fogCanvas.width * FOG_SCALE);
-            const h = Math.ceil(fogCanvas.height * FOG_SCALE);
-            lowResCanvas.width = w;
-            lowResCanvas.height = h;
-            tempCanvas.width = w;
-            tempCanvas.height = h;
-
-            // 填滿基礎迷霧 (極黑)
-            lowResCtx.fillStyle = 'rgba(15, 20, 25, 0.9)'; 
-            lowResCtx.fillRect(0, 0, w, h);
-            
-            const center = map.getCenter();
-            const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
-            
-            const exploreRadius = 250; 
-            const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
-
-            const myUid = currentUser ? currentUser.uid : 'local_user';
-            const now = Date.now();
-            const ONE_HOUR = 60 * 60 * 1000;
+            if (!map || !fogCtx || !isFogVisible) return;
+            const w = Math.ceil(fogCanvas.width * FOG_SCALE), h = Math.ceil(fogCanvas.height * FOG_SCALE);
+            lowResCanvas.width = w; lowResCanvas.height = h; tempCanvas.width = w; tempCanvas.height = h;
+            lowResCtx.fillStyle = 'rgba(15, 20, 25, 0.9)'; lowResCtx.fillRect(0, 0, w, h);
+            const center = map.getCenter(); const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
+            const exploreRadius = 250; const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
+            const now = Date.now(); const ONE_HOUR = 60 * 60 * 1000;
 
             if (radiusPx >= 1) {
-                // 繪製舊迷霧
-                tempCtx.clearRect(0, 0, w, h);
-                tempCtx.fillStyle = 'black';
+                tempCtx.clearRect(0, 0, w, h); tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
                     if (isSpectatorMode && uid === myUid) return;
-                    const userData = allUsersData[uid];
-                    if (!userData.history) return;
+                    const userData = allUsersData[uid]; if (!userData.history) return;
                     userData.history.forEach(point => {
                         if (now - point.timestamp >= ONE_HOUR) {
                             const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-                            const sx = pt.x * FOG_SCALE;
-                            const sy = pt.y * FOG_SCALE;
-                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
-                                tempCtx.beginPath();
-                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
-                                tempCtx.fill();
-                            }
+                            const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) { tempCtx.beginPath(); tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2); tempCtx.fill(); }
                         }
                     });
                 });
-                
-                lowResCtx.globalCompositeOperation = 'destination-out';
-                lowResCtx.globalAlpha = 0.4; 
-                lowResCtx.drawImage(tempCanvas, 0, 0);
-
-                // 繪製新迷霧
-                tempCtx.clearRect(0, 0, w, h);
-                tempCtx.fillStyle = 'black';
+                lowResCtx.globalCompositeOperation = 'destination-out'; lowResCtx.globalAlpha = 0.4; lowResCtx.drawImage(tempCanvas, 0, 0);
+                tempCtx.clearRect(0, 0, w, h); tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
                     if (isSpectatorMode && uid === myUid) return;
-                    const userData = allUsersData[uid];
-                    if (!userData.history) return;
+                    const userData = allUsersData[uid]; if (!userData.history) return;
                     userData.history.forEach(point => {
                         if (now - point.timestamp < ONE_HOUR) {
                             const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-                            const sx = pt.x * FOG_SCALE;
-                            const sy = pt.y * FOG_SCALE;
-                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
-                                tempCtx.beginPath();
-                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
-                                tempCtx.fill();
-                            }
+                            const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) { tempCtx.beginPath(); tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2); tempCtx.fill(); }
                         }
                     });
                 });
-                
-                lowResCtx.globalAlpha = 1.0; 
-                lowResCtx.drawImage(tempCanvas, 0, 0);
-                lowResCtx.globalCompositeOperation = 'source-over';
+                lowResCtx.globalAlpha = 1.0; lowResCtx.drawImage(tempCanvas, 0, 0); lowResCtx.globalCompositeOperation = 'source-over';
             }
-
-            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
-            fogCtx.imageSmoothingEnabled = false; 
-            fogCtx.drawImage(lowResCanvas, 0, 0, w, h, 0, 0, fogCanvas.width, fogCanvas.height);
-
-            const maxFadeTime = 30 * 60 * 1000; 
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height); fogCtx.imageSmoothingEnabled = false; fogCtx.drawImage(lowResCanvas, 0, 0, w, h, 0, 0, fogCanvas.width, fogCanvas.height);
             
+            const maxFadeTime = 30 * 60 * 1000; 
             Object.keys(allUsersData).forEach(uid => {
                 if (isSpectatorMode && uid === myUid) return; 
-                
-                const userData = allUsersData[uid];
-                if (!userData.history || userData.history.length === 0) return;
-
-                const isSelf = (uid === myUid);
-                const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
-
+                const userData = allUsersData[uid]; if (!userData.history || userData.history.length === 0) return;
+                const isSelf = (uid === myUid); const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
                 userData.history.forEach((point, index) => {
                     const age = Math.max(0, now - point.timestamp);
                     if (age < ONE_HOUR) { 
@@ -479,12 +352,7 @@
                         if (!isLatest) { 
                             const opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
                             const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-
-                            if (pt.x > -10 && pt.x < fogCanvas.width + 10 && pt.y > -10 && pt.y < fogCanvas.height + 10) {
-                                fogCtx.globalAlpha = opacity;
-                                fogCtx.fillStyle = renderColor;
-                                fogCtx.fillRect(pt.x - 4, pt.y - 4, 8, 8);
-                            }
+                            if (pt.x > -10 && pt.x < fogCanvas.width + 10 && pt.y > -10 && pt.y < fogCanvas.height + 10) { fogCtx.globalAlpha = opacity; fogCtx.fillStyle = renderColor; fogCtx.fillRect(pt.x - 4, pt.y - 4, 8, 8); }
                         }
                     }
                 });
@@ -492,334 +360,157 @@
             fogCtx.globalAlpha = 1.0; 
         }
 
-        // --- 2. 檢查本機儲存與啟動 ---
+        // --- 本機儲存與啟動 ---
         function checkLocalSetupAndStart() {
             const savedName = localStorage.getItem('dogMap_userName');
-            const savedColor = localStorage.getItem('dogMap_userColor');
-
+            const rawColor = localStorage.getItem('dogMap_userColor') || '';
+            const savedColor = /^#[0-9a-fA-F]{6}$/i.test(rawColor) ? rawColor : null;
             if (savedName) {
-                currentUserName = savedName;
+                currentUserName = escapeHTML(savedName); 
                 dbUserColor = savedColor || generateRandomColor();
                 if (!savedColor) localStorage.setItem('dogMap_userColor', dbUserColor);
-
-                startupOverlay.style.display = 'none';
-                statusToast.classList.remove('hidden');
-                locateBtn.classList.remove('hidden');
-                spectatorBtn.classList.remove('hidden'); 
-                toastText.innerText = isOfflineMode ? "離線定位中..." : "自動定位...";
-
-                startLocationServices(true);
-            } else {
-                startupOverlay.style.display = 'flex';
-                startupOverlay.style.opacity = '1';
-            }
+                finishUIReveal(); toastText.innerText = "自動定位..."; startLocationServices(true);
+            } else { startupOverlay.style.display = 'flex'; startupOverlay.style.opacity = '1'; }
         }
 
         masterStartBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            errorMsg.classList.add('hidden');
-            masterStartBtn.innerText = "連線中...";
-
-            let name = nameInput.value.trim();
+            e.preventDefault(); errorMsg.classList.add('hidden'); masterStartBtn.innerText = "連線中...";
+            let name = nameInput.value.trim().replace(/[<>]/g, ''); 
             if (!name) name = `P${Math.floor(100 + Math.random() * 900)}`;
-            currentUserName = name;
-            dbUserColor = generateRandomColor();
-
-            localStorage.setItem('dogMap_userName', currentUserName);
-            localStorage.setItem('dogMap_userColor', dbUserColor);
-
+            currentUserName = name; dbUserColor = generateRandomColor();
+            localStorage.setItem('dogMap_userName', currentUserName); localStorage.setItem('dogMap_userColor', dbUserColor);
             startLocationServices(false);
         });
 
-        // --- 觀看模式按鈕邏輯 ---
-        spectatorBtn.addEventListener('click', () => {
-            isSpectatorMode = !isSpectatorMode;
-            
-            if (isSpectatorMode) {
-                // 進入觀看模式
-                spectatorBtn.innerText = "退出觀看";
-                spectatorBtn.style.backgroundColor = "#ef4444"; 
-                spectatorBtn.style.color = "white";
-                
-                // 徹底停止自身定位與 Leaflet 監聽
-                if (watchId) {
-                    navigator.geolocation.clearWatch(watchId);
-                    watchId = null;
-                }
-                map.stopLocate(); 
-                
-                // 飛往走失中心區域
-                map.setView(LOST_DOG_CENTER, 13, { animate: true });
-                
-                // 強制重繪地圖
-                renderMap();
-                toastText.innerText = "觀看模式啟動";
-            } else {
-                // 退出觀看模式
-                spectatorBtn.innerText = "觀看模式";
-                spectatorBtn.style.backgroundColor = "#f59e0b"; 
-                spectatorBtn.style.color = "#1a202c";
-                
-                toastText.innerText = "重新定位中...";
-                startLocationServices(true);
+        // UI 按鈕綁定
+        toggleFogBtn.addEventListener('click', () => { isFogVisible = !isFogVisible; map.getPane('fogPane').style.display = isFogVisible ? 'block' : 'none'; if (isFogVisible) { toggleFogBtn.innerText = "👁️ 關閉迷霧"; toggleFogBtn.style.backgroundColor = "#f59e0b"; requestFogRender(); } else { toggleFogBtn.innerText = "🌫️ 開啟迷霧"; toggleFogBtn.style.backgroundColor = "#9ca3af"; }});
+        navPinBtn.addEventListener('click', () => {
+            if (navMarker) { map.removeLayer(navMarker); navMarker = null; navPinBtn.innerText = "📍 導航標記"; navPinBtn.style.backgroundColor = "#f59e0b"; navPinBtn.style.color = "#1a202c"; } 
+            else {
+                navMarker = L.marker(map.getCenter(), { draggable: true, zIndexOffset: 10000, icon: L.divIcon({ className: 'custom-div-icon', html: `<div style="font-size: 36px; filter: drop-shadow(2px 2px 0px #1a202c); margin-top: -36px; margin-left: -18px; cursor: grab;">🎯</div>`, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(map);
+                const updatePopup = () => { const pos = navMarker.getLatLng(); navMarker.bindPopup(`<div class="text-center font-bold p-2"><p class="mb-2 text-xs text-gray-800 border-b-2 border-black pb-1">拖曳標靶調整位置</p><a href="https://www.google.com/maps/dir/?api=1&destination=$${pos.lat},${pos.lng}" target="_blank" class="pixel-btn px-4 py-2 mt-2 text-sm inline-block no-underline bg-blue-500 text-white border-black w-full shadow-[4px_4px_0px_#1a202c]">🚀 導航至此</a></div>`, { className: 'pixel-popup', closeButton: false, offset: [0, -40] }).openPopup(); };
+                navMarker.on('dragend', updatePopup); updatePopup();
+                navPinBtn.innerText = "❌ 移除標記"; navPinBtn.style.backgroundColor = "#ef4444"; navPinBtn.style.color = "white";
             }
         });
 
-        // --- 3. 定位核心服務 ---
-        function startLocationServices(isAutoStart) {
-            if (!navigator.geolocation) {
-                handleGeoError({code: 0, message: "瀏覽器不支援"}, isAutoStart);
-                return;
+        forceUploadBtn.addEventListener('click', () => {
+            if (isSpectatorMode) { showModal("觀看模式下無法上傳位置！"); return; }
+            forceUploadBtn.innerText = "⏳ 獲取中..."; forceUploadBtn.style.backgroundColor = "#9ca3af";
+            if (!navigator.geolocation) { showModal("不支援定位"); resetForceUploadBtn(); return; }
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const newPoint = { lat: pos.coords.latitude, lng: pos.coords.longitude, timestamp: Date.now() };
+                localHistory.push(newPoint); lastSavedPos = newPoint;
+                localHistory = localHistory.filter(p => p.timestamp > Date.now() - 12 * 60 * 60 * 1000).slice(-800);
+                allUsersData[myUid] = { userName: currentUserName, color: dbUserColor, history: [...localHistory], lastUpdate: Date.now() };
+                map.setView([newPoint.lat, newPoint.lng], 17, { animate: true }); renderMap(); saveLocationToServer();
+                resetForceUploadBtn(); showModal("✅ 強制打卡成功！");
+            }, (err) => { resetForceUploadBtn(); handleGeoError(err, false); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+        });
+        function resetForceUploadBtn() { forceUploadBtn.innerText = "📤 強制打卡"; forceUploadBtn.style.backgroundColor = "#f59e0b"; }
+
+        spectatorBtn.addEventListener('click', () => {
+            isSpectatorMode = !isSpectatorMode;
+            if (isSpectatorMode) {
+                spectatorBtn.innerText = "退出觀看"; spectatorBtn.style.backgroundColor = "#ef4444"; spectatorBtn.style.color = "white";
+                if (watchId) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+                map.setView(LOST_DOG_CENTER, 13, { animate: true }); renderMap(); toastText.innerText = "觀看模式啟動";
+            } else {
+                spectatorBtn.innerText = "觀看模式"; spectatorBtn.style.backgroundColor = "#f59e0b"; spectatorBtn.style.color = "#1a202c";
+                toastText.innerText = "重新定位中..."; startLocationServices(true);
             }
+        });
 
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    if (isSpectatorMode) return; 
-                    handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
-                    finishUIReveal();
-                },
-                (error) => { handleGeoError(error, isAutoStart); },
-                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-            );
-
+        // --- 定位服務與伺服器同步 ---
+        function startLocationServices(isAutoStart) {
+            if (!navigator.geolocation) { handleGeoError({code: 0, message: "瀏覽器不支援"}, isAutoStart); return; }
+            navigator.geolocation.getCurrentPosition((pos) => { if (isSpectatorMode) return; handleValidPosition(pos.coords.latitude, pos.coords.longitude, Date.now()); finishUIReveal(); }, (err) => { handleGeoError(err, isAutoStart); }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
             if (watchId) navigator.geolocation.clearWatch(watchId);
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {
-                    if (isSpectatorMode) return;
-                    handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
-                },
-                (error) => { 
-                    console.warn("Watch Geo Error:", error);
-                    // 【修復跳窗】：不在持續監聽中觸發錯誤視窗，僅更新狀態燈號
-                    document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
-                    toastText.innerText = "定位訊號較弱...";
-                },
-                { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
-            );
-
-            map.locate({ setView: false, watch: true, enableHighAccuracy: true });
+            watchId = navigator.geolocation.watchPosition((pos) => { if (isSpectatorMode) return; handleValidPosition(pos.coords.latitude, pos.coords.longitude, Date.now()); }, (err) => { console.warn("Watch Geo Error:", err); }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 });
         }
 
         function finishUIReveal() {
-            startupOverlay.style.opacity = '0';
-            setTimeout(() => { startupOverlay.style.display = 'none'; }, 300);
-            statusToast.classList.remove('hidden');
-            locateBtn.classList.remove('hidden');
-            spectatorBtn.classList.remove('hidden');
-            toastText.innerText = "位置同步成功";
-        }
-
-        function onLocationFound(e) {
-            handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
-        }
-        function onLocationError(e) {
-            // Leaflet 的持續定位錯誤，同樣不報錯，以免干擾用戶
+            startupOverlay.style.opacity = '0'; setTimeout(() => { startupOverlay.style.display = 'none'; }, 300);
+            statusToast.classList.remove('hidden'); locateBtn.classList.remove('hidden'); spectatorBtn.classList.remove('hidden'); toggleFogBtn.classList.remove('hidden'); navPinBtn.classList.remove('hidden'); forceUploadBtn.classList.remove('hidden'); toastText.innerText = "位置同步成功";
         }
 
         function handleValidPosition(lat, lng, timestamp) {
             if (isSpectatorMode) return; 
+            if (localHistory.length === 0) map.setView([lat, lng], 17); 
 
-            if (localHistory.length === 0) {
-                map.setView([lat, lng], 17); 
-            }
-
+            let shouldUpload = false;
             if (lastSavedPos) {
                 const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                // 距離小於 100 公尺則不上傳新點，以節省流量
-                if (dist < 100) return; 
-            }
+                const timeElapsed = timestamp - lastSavedPos.timestamp;
+                if (dist >= 100 || timeElapsed >= 3 * 60 * 1000) shouldUpload = true; 
+                else return; 
+            } else { shouldUpload = true; }
 
-            const newPoint = { lat, lng, timestamp };
-            localHistory.push(newPoint);
-            lastSavedPos = newPoint;
+            const newPoint = { lat, lng, timestamp }; localHistory.push(newPoint); lastSavedPos = newPoint;
+            localHistory = localHistory.filter(p => p.timestamp > timestamp - 12 * 60 * 60 * 1000).slice(-800);
+            
+            allUsersData[myUid] = { userName: currentUserName, color: dbUserColor, history: [...localHistory], lastUpdate: Date.now() };
+            renderMap(); if (shouldUpload) saveLocationToServer();
+        }
 
-            const twelveHoursAgo = timestamp - 12 * 60 * 60 * 1000;
-            localHistory = localHistory.filter(p => p.timestamp > twelveHoursAgo);
-            if (localHistory.length > 800) localHistory = localHistory.slice(-800);
-
-            const myUid = currentUser ? currentUser.uid : 'local_user';
-            allUsersData[myUid] = {
-                userName: currentUserName || "我",
-                color: dbUserColor || "#ef4444",
-                history: [...localHistory],
-                lastUpdate: Date.now()
+        function saveLocationToServer() {
+            if (!isSystemReady || localHistory.length === 0 || isSpectatorMode) return;
+            const payload = {
+                type: "update_location",
+                uid: myUid,
+                data: { userName: currentUserName, color: dbUserColor, history: localHistory.slice(-50), lastUpdate: Date.now() }
             };
-            renderMap(); 
-
-            if (isSystemReady) saveLocationToFirestore();
-        }
-
-        async function saveLocationToFirestore() {
-            if (!isSystemReady || !currentUser || localHistory.length === 0 || isSpectatorMode) return;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
-            try {
-                // 【優化節省頻寬】：本地雖然保留 800 筆，但只上傳最後 50 筆給其他玩家看
-                // 這樣可以大幅減少每次移動時，全體監聽者需要下載的陣列大小。
-                const optimizedHistory = localHistory.slice(-50);
-
-                await setDoc(docRef, {
-                    userName: currentUserName,
-                    color: dbUserColor,
-                    history: optimizedHistory,
-                    lastUpdate: Date.now()
-                }, { merge: true });
-                
-                document.getElementById('sync-ping').style.backgroundColor = 'white';
-                setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
-                toastText.innerText = "位置同步成功";
-            } catch (e) {
-                console.error("Firestore Upload Error", e);
-            }
-        }
-
-        // --- 4. 監聽與標記渲染 ---
-        function listenToAllLocations() {
-            if (!currentUser) return;
-            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
-            onSnapshot(collectionRef, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === "added" || change.type === "modified") {
-                        allUsersData[change.doc.id] = change.doc.data();
-                    }
-                    if (change.type === "removed") delete allUsersData[change.doc.id];
-                });
-                renderMap();
-            }, (error) => {
-                console.error("即時資料監聽失敗:", error);
-            });
+            ws.send(JSON.stringify(payload));
         }
 
         function renderMap() {
             if (!markersLayer) return;
             markersLayer.clearLayers(); 
-            
-            const myUid = currentUser ? currentUser.uid : 'local_user';
-            let onlineUserCount = 0; 
-            const ONE_HOUR = 60 * 60 * 1000;
-            const now = Date.now();
+            let onlineUserCount = 0; const ONE_HOUR = 60 * 60 * 1000; const now = Date.now();
 
             Object.keys(allUsersData).forEach(uid => {
-                const userData = allUsersData[uid];
-                if (!userData.history || userData.history.length === 0) return;
-
-                const isSelf = (uid === myUid);
-                
-                if (isSpectatorMode && isSelf) return;
-
+                const userData = allUsersData[uid]; if (!userData.history || userData.history.length === 0) return;
+                const isSelf = (uid === myUid); if (isSpectatorMode && isSelf) return;
                 onlineUserCount++;
-
                 const lastPoint = userData.history[userData.history.length - 1];
-                const age = Math.max(0, now - lastPoint.timestamp);
-
-                if (age < ONE_HOUR) { 
-                    const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
-                    const avatarHtml = isSelf 
-                        ? `<div class="user-avatar-pixel blinking-red-pixel"></div>`
-                        : `<div class="user-avatar-pixel" style="background-color: ${renderColor};"></div>`;
-                    
+                if (now - lastPoint.timestamp < ONE_HOUR) { 
+                    const safeUserName = escapeHTML(userData.userName), safeRenderColor = escapeHTML(isSelf ? '#ef4444' : (userData.color || '#3b82f6'));
+                    const avatarHtml = isSelf ? `<div class="user-avatar-pixel blinking-red-pixel"></div>` : `<div class="user-avatar-pixel" style="background-color: ${safeRenderColor};"></div>`;
                     const nameColor = isSelf ? 'color: #ef4444;' : 'color: #1a202c;';
-
-                    const customIcon = L.divIcon({
-                        className: 'custom-div-icon',
-                        html: `
-                            <div class="user-label-container">
-                                <div class="user-name-tag pixel-panel" style="${nameColor}">${userData.userName}</div>
-                                ${avatarHtml}
-                            </div>
-                        `,
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0]
-                    });
-                    
-                    L.marker([lastPoint.lat, lastPoint.lng], { 
-                        icon: customIcon, 
-                        zIndexOffset: isSelf ? 5000 : 1000 
-                    }).addTo(markersLayer);
+                    const customIcon = L.divIcon({ className: 'custom-div-icon', html: `<div class="user-label-container"><div class="user-name-tag pixel-panel" style="${nameColor}">${safeUserName}</div>${avatarHtml}</div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
+                    L.marker([lastPoint.lat, lastPoint.lng], { icon: customIcon, zIndexOffset: isSelf ? 5000 : 1000 }).addTo(markersLayer);
                 }
             });
-
             if (toastText.innerText.includes("同步成功") || toastText.innerText.includes("線上") || toastText.innerText.includes("觀看")) {
                 toastText.innerText = isSpectatorMode ? `觀看中: ${onlineUserCount} 人` : `線上: ${onlineUserCount} 人`;
             }
-            
             requestFogRender();
         }
 
-        // --- 工具 ---
         function getDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371e3; 
-            const p1 = lat1 * Math.PI/180;
-            const p2 = lat2 * Math.PI/180;
-            const dp = (lat2-lat1) * Math.PI/180;
-            const dl = (lon2-lon1) * Math.PI/180;
+            const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180, dp = (lat2-lat1) * Math.PI/180, dl = (lon2-lon1) * Math.PI/180;
             const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
-            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return 6371e3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        locateBtn.addEventListener('click', () => {
-            if (isSpectatorMode) return; 
-            if (lastSavedPos) {
-                map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true });
-            }
-        });
+        locateBtn.addEventListener('click', () => { if (!isSpectatorMode && lastSavedPos) map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true }); });
 
         function handleGeoError(error, isAutoStart) {
             if (isSpectatorMode) return; 
-
             masterStartBtn.innerText = "START [重新授權]";
-            if (isAutoStart) {
-                startupOverlay.style.display = 'flex';
-                startupOverlay.style.opacity = '1';
-                statusToast.classList.add('hidden');
-                locateBtn.classList.add('hidden');
-                spectatorBtn.classList.add('hidden');
-            }
+            if (isAutoStart) { startupOverlay.style.display = 'flex'; startupOverlay.style.opacity = '1'; statusToast.classList.add('hidden'); locateBtn.classList.add('hidden'); spectatorBtn.classList.add('hidden'); toggleFogBtn.classList.add('hidden'); navPinBtn.classList.add('hidden'); forceUploadBtn.classList.add('hidden'); }
+            let msg = "無定位權限。請至手機設定中確認。", isCopyable = false;
+            if (error.code === 1) { msg = "⚠️ 缺少定位權限！\n\n👉 點此複製網址 👈\n請改用 Safari 或 Chrome 貼上開啟。"; isCopyable = true; } 
+            else if (error.code === 2) msg = "無法獲取位置，請確認 GPS 已開啟。"; 
+            else if (error.code === 3) msg = "獲取位置逾時，請檢查網路。";
             
-            let msg = "無定位權限。請至手機設定中確認。";
-            let isCopyable = false;
-
-            if (error.code === 1) { 
-                msg = "⚠️ 缺少定位權限！\n\n若您使用 LINE 或 FB 直接開啟，將無法使用地圖。\n\n👉 點此複製網址 👈\n請改用 Safari 或 Chrome 貼上開啟。";
-                isCopyable = true;
-            } else if (error.code === 2) {
-                msg = "無法獲取位置，請確認 GPS 已開啟。";
-            } else if (error.code === 3) {
-                msg = "獲取位置逾時，請檢查網路。";
-            }
-            showError(msg, isCopyable);
-        }
-
-        function showError(msg, isCopyable = false) {
-            // 在歡迎畫面上顯示錯誤文字
-            errorMsg.innerText = msg.replace(/\n/g, ' ');
-            errorMsg.classList.remove('hidden');
-            
+            errorMsg.innerText = msg.replace(/\n/g, ' '); errorMsg.classList.remove('hidden');
             if (isCopyable) {
                 errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed whitespace-pre-wrap";
-                errorMsg.innerText = msg; // 保留換行
-                errorMsg.onclick = () => {
-                    const textArea = document.createElement("textarea");
-                    textArea.value = window.location.href;
-                    document.body.appendChild(textArea);
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        // 【修復】：改用 showModal 取代 alert
-                        showModal("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
-                    } catch (err) {
-                        showModal("複製失敗，請手動複製上方網址。");
-                    }
-                    document.body.removeChild(textArea);
-                };
-            } else {
-                errorMsg.className = "text-red-600 font-bold text-sm mt-4 block whitespace-pre-wrap";
-                errorMsg.onclick = null;
-            }
-            
-            // 【修復】：隱藏啟動畫面時的錯誤通知改用 custom modal
-            if (startupOverlay.style.display === 'none') {
-                showModal(msg.replace(/<[^>]+>/g, ''));
-            }
+                errorMsg.innerText = msg; 
+                errorMsg.onclick = () => { const t = document.createElement("textarea"); t.value = window.location.href; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); showModal("✅ 網址已複製！"); } catch(e){} document.body.removeChild(t); };
+            } else { errorMsg.className = "text-red-600 font-bold text-sm mt-4 block whitespace-pre-wrap"; errorMsg.onclick = null; }
+            if (startupOverlay.style.display === 'none') showModal(msg.replace(/<[^>]+>/g, ''));
         }
 
         window.addEventListener('DOMContentLoaded', initSystem);
