@@ -158,6 +158,16 @@
         <span id="toast-text">連線中...</span>
     </div>
 
+    <!-- 系統公告/澄清訊息 (右上角) -->
+    <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md">
+        <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm">📢 飼主澄清公告</div>
+        <div class="leading-relaxed mt-2">
+            之前有其他的狗遺失<br>
+            小鳳是我姑姑的狗 我是幫找<br>
+            嘎嘎是我大學收養 寄養在同學家被弄丟
+        </div>
+    </div>
+
     <!-- 觀看模式按鈕 (左下) -->
     <button id="spectator-btn" class="absolute bottom-24 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
         觀看模式
@@ -234,7 +244,7 @@
             
             markersLayer = L.layerGroup().addTo(map);
 
-            // --- 標記走失中心點 (直接加在 map 上避免被 clearLayers 清除) ---
+            // --- 標記走失中心點 ---
             const centerIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `
@@ -361,21 +371,19 @@
             const center = map.getCenter();
             const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
             
-            // 👇👇👇 [手動修改區] 👇👇👇
             const exploreRadius = 250; 
             const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
-            // 👆👆👆 [手動修改區] 👆👆👆
 
             const myUid = currentUser ? currentUser.uid : 'local_user';
             const now = Date.now();
             const ONE_HOUR = 60 * 60 * 1000;
 
             if (radiusPx >= 1) {
-                // --- 繪製「大於 1 小時前」的舊迷霧 (半透明淡色痕跡) ---
+                // 繪製舊迷霧
                 tempCtx.clearRect(0, 0, w, h);
                 tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
-                    if (isSpectatorMode && uid === myUid) return; // 觀看模式忽略自己
+                    if (isSpectatorMode && uid === myUid) return;
                     const userData = allUsersData[uid];
                     if (!userData.history) return;
                     userData.history.forEach(point => {
@@ -396,11 +404,11 @@
                 lowResCtx.globalAlpha = 0.4; 
                 lowResCtx.drawImage(tempCanvas, 0, 0);
 
-                // --- 繪製「1 小時內」的新迷霧 (完全透明驅散) ---
+                // 繪製新迷霧
                 tempCtx.clearRect(0, 0, w, h);
                 tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
-                    if (isSpectatorMode && uid === myUid) return; // 觀看模式忽略自己
+                    if (isSpectatorMode && uid === myUid) return;
                     const userData = allUsersData[uid];
                     if (!userData.history) return;
                     userData.history.forEach(point => {
@@ -426,13 +434,10 @@
             fogCtx.imageSmoothingEnabled = false; 
             fogCtx.drawImage(lowResCanvas, 0, 0, w, h, 0, 0, fogCanvas.width, fogCanvas.height);
 
-            // ==========================================
-            // 🚀 效能大升級：使用原生 Canvas 繪製軌跡點 
-            // ==========================================
             const maxFadeTime = 30 * 60 * 1000; 
             
             Object.keys(allUsersData).forEach(uid => {
-                if (isSpectatorMode && uid === myUid) return; // 觀看模式忽略自己
+                if (isSpectatorMode && uid === myUid) return; 
                 
                 const userData = allUsersData[uid];
                 if (!userData.history || userData.history.length === 0) return;
@@ -442,28 +447,27 @@
 
                 userData.history.forEach((point, index) => {
                     const age = Math.max(0, now - point.timestamp);
-                    // 軌跡點依然只顯示 1 小時內的
                     if (age < ONE_HOUR) { 
                         const isLatest = index === userData.history.length - 1;
-                        if (!isLatest) { // 最新點交給 DOM 大頭貼處理，歷史點用畫的
+                        if (!isLatest) { 
                             const opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
                             const pt = map.latLngToContainerPoint([point.lat, point.lng]);
 
-                            // 螢幕可視範圍檢查 (Culling)
                             if (pt.x > -10 && pt.x < fogCanvas.width + 10 && pt.y > -10 && pt.y < fogCanvas.height + 10) {
                                 fogCtx.globalAlpha = opacity;
                                 fogCtx.fillStyle = renderColor;
                                 fogCtx.fillRect(pt.x - 4, pt.y - 4, 8, 8);
                                 
-                                fogCtx.lineWidth = 2;
-                                fogCtx.strokeStyle = '#1a202c';
-                                fogCtx.strokeRect(pt.x - 4, pt.y - 4, 8, 8);
+                                // 移除粗框，讓歷史軌跡能連成一條純色的線
+                                // fogCtx.lineWidth = 2;
+                                // fogCtx.strokeStyle = '#1a202c';
+                                // fogCtx.strokeRect(pt.x - 4, pt.y - 4, 8, 8);
                             }
                         }
                     }
                 });
             });
-            fogCtx.globalAlpha = 1.0; // 繪製結束重置透明度
+            fogCtx.globalAlpha = 1.0; 
         }
 
         // --- 2. 檢查本機儲存與啟動 ---
@@ -479,7 +483,7 @@
                 startupOverlay.style.display = 'none';
                 statusToast.classList.remove('hidden');
                 locateBtn.classList.remove('hidden');
-                spectatorBtn.classList.remove('hidden'); // 顯示觀看模式按鈕
+                spectatorBtn.classList.remove('hidden'); 
                 toastText.innerText = isOfflineMode ? "離線定位中..." : "自動定位...";
 
                 startLocationServices(true);
@@ -512,25 +516,26 @@
             if (isSpectatorMode) {
                 // 進入觀看模式
                 spectatorBtn.innerText = "退出觀看";
-                spectatorBtn.style.backgroundColor = "#ef4444"; // 紅底提示
+                spectatorBtn.style.backgroundColor = "#ef4444"; 
                 spectatorBtn.style.color = "white";
                 
-                // 停止自身定位
+                // 徹底停止自身定位與 Leaflet 監聽
                 if (watchId) {
                     navigator.geolocation.clearWatch(watchId);
                     watchId = null;
                 }
+                map.stopLocate(); // 【修復】：停止 Leaflet 內建的定位監聽器
                 
                 // 飛往走失中心區域
                 map.setView(LOST_DOG_CENTER, 13, { animate: true });
                 
-                // 強制重繪地圖 (會隱藏自己的標記)
+                // 強制重繪地圖
                 renderMap();
                 toastText.innerText = "觀看模式啟動";
             } else {
                 // 退出觀看模式
                 spectatorBtn.innerText = "觀看模式";
-                spectatorBtn.style.backgroundColor = "#f59e0b"; // 恢復橘底
+                spectatorBtn.style.backgroundColor = "#f59e0b"; 
                 spectatorBtn.style.color = "#1a202c";
                 
                 toastText.innerText = "重新定位中...";
@@ -547,6 +552,7 @@
 
             navigator.geolocation.getCurrentPosition(
                 (position) => {
+                    if (isSpectatorMode) return; 
                     handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
                     finishUIReveal();
                 },
@@ -557,6 +563,7 @@
             if (watchId) navigator.geolocation.clearWatch(watchId);
             watchId = navigator.geolocation.watchPosition(
                 (position) => {
+                    if (isSpectatorMode) return;
                     handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
                 },
                 (error) => { console.warn("Watch Geo Error:", error); },
@@ -581,7 +588,7 @@
         function onLocationError(e) {}
 
         function handleValidPosition(lat, lng, timestamp) {
-            if (isSpectatorMode) return; // 觀看模式不處理自身定位
+            if (isSpectatorMode) return; 
 
             if (localHistory.length === 0) {
                 map.setView([lat, lng], 17); 
@@ -649,7 +656,7 @@
 
         function renderMap() {
             if (!markersLayer) return;
-            markersLayer.clearLayers(); // 清除舊有的 DOM
+            markersLayer.clearLayers(); 
             
             const myUid = currentUser ? currentUser.uid : 'local_user';
             let onlineUserCount = 0; 
@@ -662,16 +669,13 @@
 
                 const isSelf = (uid === myUid);
                 
-                // 若為觀看模式，過濾掉自己的渲染
                 if (isSpectatorMode && isSelf) return;
 
                 onlineUserCount++;
 
-                // 取得這個使用者的「最新一點」
                 const lastPoint = userData.history[userData.history.length - 1];
                 const age = Math.max(0, now - lastPoint.timestamp);
 
-                // 只要此人一小時內有出現過，就渲染大頭貼標記 (歷史尾巴由 Canvas 代勞)
                 if (age < ONE_HOUR) { 
                     const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
                     const avatarHtml = isSelf 
@@ -703,7 +707,6 @@
                 toastText.innerText = isSpectatorMode ? `觀看中: ${onlineUserCount} 人` : `線上: ${onlineUserCount} 人`;
             }
             
-            // 觸發畫布渲染 (負責迷霧與尾巴軌跡)
             requestFogRender();
         }
 
@@ -719,13 +722,16 @@
         }
 
         locateBtn.addEventListener('click', () => {
-            if (isSpectatorMode) return; // 觀看模式無法定位自己
+            if (isSpectatorMode) return; 
             if (lastSavedPos) {
                 map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true });
             }
         });
 
         function handleGeoError(error, isAutoStart) {
+            // 【修復】：如果是觀看模式，直接中斷處理，不要再跳出逾時警告
+            if (isSpectatorMode) return; 
+
             masterStartBtn.innerText = "START [重新授權]";
             if (isAutoStart) {
                 startupOverlay.style.display = 'flex';
@@ -764,7 +770,7 @@
                         document.execCommand('copy');
                         alert("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
                     } catch (err) {
-                        alert("複製失敗，請手動複製上方網址。");
+                        alert("複製失敗，請手手動複製上方網址。");
                     }
                     document.body.removeChild(textArea);
                 };
