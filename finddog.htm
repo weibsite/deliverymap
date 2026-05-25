@@ -546,7 +546,7 @@
             });
         });
 
-        // 渲染地圖上的出沒點
+        // 渲染地圖上的出沒點 (更新：將固定標題改為詳細描述的前六個字)
         function renderSightings() {
             if (!sightingsLayer) return;
             sightingsLayer.clearLayers();
@@ -554,7 +554,13 @@
                 const data = allSightings[id]; const safeDesc = escapeHTML(data.description);
                 const d = new Date(data.timestamp); const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
                 const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`;
-                const icon = L.divIcon({ className: 'custom-div-icon', html: `<div class="user-label-container" style="bottom: 12px;"><div class="user-name-tag pixel-panel" style="color: #1a202c; background-color: #fef08a; border-color: #1a202c; animation: blink-pixel 2s infinite alternate;">⚠️ 疑似出沒</div><div style="font-size: 28px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐾</div></div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
+                
+                // 擷取詳細描述的前 6 個字，若超過則加上 "..." 
+                const rawDesc = data.description || "";
+                const shortTitle = rawDesc.length > 6 ? rawDesc.substring(0, 6) + "..." : rawDesc;
+                const safeShortTitle = escapeHTML(shortTitle);
+
+                const icon = L.divIcon({ className: 'custom-div-icon', html: `<div class="user-label-container" style="bottom: 12px;"><div class="user-name-tag pixel-panel" style="color: #1a202c; background-color: #fef08a; border-color: #1a202c; animation: blink-pixel 2s infinite alternate;">⚠️ ${safeShortTitle}</div><div style="font-size: 28px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐾</div></div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
                 const marker = L.marker([data.lat, data.lng], { icon, zIndexOffset: 3000 }).addTo(sightingsLayer);
                 marker.bindPopup(`<div class="p-2 w-48 font-bold text-gray-900"><div class="border-b-2 border-black pb-1 mb-2 text-sm text-blue-600">🕒 時間：${dateStr}</div><div class="text-sm mb-4 whitespace-pre-wrap leading-relaxed">${safeDesc}</div><a href="${gmapsUrl}" target="_blank" class="pixel-btn block text-center py-2 text-xs bg-blue-500 text-white shadow-[4px_4px_0px_#1a202c] no-underline">🚀 開啟 Google 導航</a></div>`, { className: 'pixel-popup', closeButton: true, offset: [0, -30] });
             });
