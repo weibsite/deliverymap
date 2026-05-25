@@ -210,8 +210,21 @@
             map.on('locationerror', onLocationError);
             setInterval(renderMap, 15000); 
 
-            // 安全初始化 Firebase (防止在無環境變數時直接當機)
-            let firebaseConfig = null;
+            // ==========================================
+            // 👇 請在這裡貼上你申請的 Firebase Config 👇
+            // ==========================================
+            let firebaseConfig = {
+                apiKey: "AIzaSyCY_WA9GnVHKLQnLyaJaRh5SpQa8P3ceOo",
+                authDomain: "finddog-e89c3.firebaseapp.com",
+                projectId: "finddog-e89c3",
+                storageBucket: "finddog-e89c3.firebasestorage.app",
+                messagingSenderId: "409601620505",
+                appId: "1:409601620505:web:e7a30042d923547c514888",
+                measurementId: "G-WHVQCY3P4H"
+            };
+            // ==========================================
+
+            // 安全初始化 Firebase (允許在 AI 預覽環境中自動載入設定)
             try {
                 if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                     firebaseConfig = JSON.parse(__firebase_config);
@@ -404,7 +417,6 @@
         function handleValidPosition(lat, lng, timestamp) {
             if (localHistory.length === 0) {
                 map.setView([lat, lng], 17); 
-                spawnVirtualDogs(lat, lng); // 自動產生附近虛擬玩家測試用
             }
 
             if (lastSavedPos) {
@@ -449,40 +461,6 @@
             } catch (e) {
                 console.error("Firestore Upload Error", e);
             }
-        }
-
-        // 建立虛擬路人 (解決剛好沒有其他線上玩家時的空虛感)
-        function spawnVirtualDogs(baseLat, baseLng) {
-            if (allUsersData['bot_1']) return; // 已產生過
-
-            const bots = [
-                { id: 'bot_1', name: '🐕 柴犬 (虛擬)', color: '#f59e0b', offsetLat: 0.002, offsetLng: 0.002, speed: 0.0001 },
-                { id: 'bot_2', name: '🐺 哈士奇 (虛擬)', color: '#06b6d4', offsetLat: -0.001, offsetLng: 0.003, speed: 0.00015 },
-            ];
-
-            bots.forEach(bot => {
-                let currentLat = baseLat + bot.offsetLat;
-                let currentLng = baseLng + bot.offsetLng;
-                let angle = Math.random() * Math.PI * 2;
-
-                allUsersData[bot.id] = {
-                    userName: bot.name,
-                    color: bot.color,
-                    history: [{ lat: currentLat, lng: currentLng, timestamp: Date.now() }],
-                    lastUpdate: Date.now()
-                };
-
-                // 每 4 秒虛擬移動一次
-                setInterval(() => {
-                    angle += (Math.random() - 0.5); 
-                    currentLat += Math.cos(angle) * bot.speed;
-                    currentLng += Math.sin(angle) * bot.speed;
-
-                    allUsersData[bot.id].history.push({ lat: currentLat, lng: currentLng, timestamp: Date.now() });
-                    if (allUsersData[bot.id].history.length > 20) allUsersData[bot.id].history.shift();
-                    renderMap();
-                }, 4000);
-            });
         }
 
         // --- 4. 監聽與標記渲染 ---
