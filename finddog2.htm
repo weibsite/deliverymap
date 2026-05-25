@@ -57,6 +57,38 @@
     
     <div id="admin-login-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><h3 class="text-gray-900 font-bold mb-4 text-xl">👑 管理員登入</h3><input type="password" id="admin-pwd-input" class="pixel-input w-full p-3 mb-4 text-center font-sans" placeholder="請輸入密碼"><div class="flex gap-2"><button id="admin-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="admin-submit-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">登入</button></div></div></div>
 
+    <!-- 新增：選擇定位方式 Modal -->
+    <div id="position-method-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <h3 class="text-gray-900 font-bold mb-4 text-xl">📍 選擇定位方式</h3>
+            <p class="text-gray-700 mb-6 text-sm font-bold">請選擇如何指定此出沒點的地理位置：</p>
+            <div class="flex flex-col gap-3">
+                <button id="pos-method-map-btn" class="pixel-btn w-full py-3 bg-green-500 text-white">🖱️ 在地圖上點擊選點</button>
+                <button id="pos-method-input-btn" class="pixel-btn w-full py-3 bg-blue-500 text-white">✍️ 手動輸入經緯度座標</button>
+                <button id="pos-method-cancel-btn" class="pixel-btn w-full py-2 bg-gray-400">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新增：輸入經緯度座標 Modal -->
+    <div id="coordinate-input-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <h3 class="text-gray-900 font-bold mb-4 text-xl">✍️ 輸入座標</h3>
+            <p class="text-left text-gray-700 mb-3 text-xs leading-relaxed font-bold">
+                支援格式：<br>
+                • 度分秒 (DMS)：<br>
+                <span class="text-blue-600">23°45'10.4"N 120°23'40.0"E</span><br>
+                • 十進位 (Decimal)：<br>
+                <span class="text-blue-600">23.75288, 120.39444</span>
+            </p>
+            <input type="text" id="coord-input-value" class="pixel-input w-full p-3 text-sm mb-4 text-center text-gray-900 font-mono" placeholder="貼上或輸入座標..." />
+            <div class="flex gap-2">
+                <button id="coord-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button>
+                <button id="coord-submit-btn" class="pixel-btn flex-1 py-2 bg-blue-500 text-white">確定</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 新增：管理出沒點列表 Modal -->
     <div id="manage-sightings-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
         <div class="pixel-panel p-4 w-full max-w-md h-[75vh] flex flex-col">
@@ -147,10 +179,12 @@
         const manageSightingsBtn = document.getElementById('manage-sightings-btn');
         const updateAnnounceBtn = document.getElementById('update-announce-btn');
 
-        // 管理列表相關 DOM
+        // 管理列表與座標輸入相關 DOM
         const manageSightingsModal = document.getElementById('manage-sightings-modal');
         const closeManageModalBtn = document.getElementById('close-manage-modal-btn');
         const sightingsListContainer = document.getElementById('sightings-list-container');
+        const positionMethodModal = document.getElementById('position-method-modal');
+        const coordinateInputModal = document.getElementById('coordinate-input-modal');
 
         // --- 工具 ---
         function escapeHTML(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
@@ -184,6 +218,74 @@
         }
 
         function generateRandomColor() { const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4']; return colors[Math.floor(Math.random() * colors.length)]; }
+
+        // --- 座標解析工具 (支援度分秒 DMS 如 23°45'10.4"N 與十進位如 23.7509) ---
+        function parseDMS(dmsStr) {
+            dmsStr = dmsStr.trim().toUpperCase();
+            
+            // 判斷南緯/西經
+            let multiplier = 1;
+            if (dmsStr.includes('S') || dmsStr.includes('W')) {
+                multiplier = -1;
+            }
+            
+            // 移除文字部分，統一取代度分秒常見符號為空白以方便切割
+            let clean = dmsStr.replace(/[NSEW]/g, '').trim();
+            clean = clean.replace(/[°ºdD]/g, ' ')
+                         .replace(/['’‘]/g, ' ')
+                         .replace(/["”‟‟″]/g, ' ')
+                         .trim();
+                         
+            let parts = clean.split(/\s+/).map(Number);
+            
+            if (parts.length === 0 || isNaN(parts[0])) return null;
+            
+            let degrees = parts[0] || 0;
+            let minutes = parts[1] || 0;
+            let seconds = parts[2] || 0;
+            
+            let decimal = degrees + (minutes / 60) + (seconds / 3600);
+            return decimal * multiplier;
+        }
+        
+        function parseCoordinatesInput(inputStr) {
+            inputStr = inputStr.trim();
+            const hasDMS = /[NSEW°'"’”″]/i.test(inputStr);
+            
+            if (hasDMS) {
+                // 利用正規表達式匹配包含度分秒結構的成對經緯度區段
+                const dmsRegex = /(-?\d+(?:\.\d+)?\s*[°ºdD\s]\s*\d+(?:\.\d+)?\s*['’\s]\s*\d+(?:\.\d+)?\s*["”″]?\s*[NSEW]?)/gi;
+                let matches = inputStr.match(dmsRegex);
+                if (matches && matches.length >= 2) {
+                    let lat = parseDMS(matches[0]);
+                    let lng = parseDMS(matches[1]);
+                    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                        return { lat, lng };
+                    }
+                }
+                
+                // 備用方案：如果常規正則沒切好，嘗試用常見符號（如逗號、分號）切成兩段
+                let rawParts = inputStr.split(/[,;]+/);
+                if (rawParts.length >= 2) {
+                    let lat = parseDMS(rawParts[0]);
+                    let lng = parseDMS(rawParts[1]);
+                    if (lat !== null && lng !== null && !isNaN(lat) && !isNaN(lng)) {
+                        return { lat, lng };
+                    }
+                }
+            } else {
+                // 十進位格式解析（如：23.7509678, 120.3995609）
+                let parts = inputStr.split(/[,;\s]+/);
+                if (parts.length >= 2) {
+                    let lat = parseFloat(parts[0]);
+                    let lng = parseFloat(parts[1]);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        return { lat, lng };
+                    }
+                }
+            }
+            return null;
+        }
 
         // --- 1. WebSocket 與 初始化 ---
         function connectWebSocket() {
@@ -257,10 +359,33 @@
             } else { showModal("密碼錯誤，請重新確認。"); }
         });
 
-        // 增設出沒點
+        // 增設出沒點流程
         addSightingBtn.addEventListener('click', () => {
             if(!isAdmin) return;
             showInputModal("📍 新增疑似出沒點", "請詳細描述此事件點...", "", (desc) => {
+                openPositionMethodSelection(desc);
+            });
+        });
+
+        // 選擇定位方式
+        function openPositionMethodSelection(desc) {
+            positionMethodModal.classList.remove('hidden');
+
+            const mapBtn = document.getElementById('pos-method-map-btn');
+            const inputBtn = document.getElementById('pos-method-input-btn');
+            const cancelBtn = document.getElementById('pos-method-cancel-btn');
+
+            // 複製節點移除舊有事件監聽
+            const newMapBtn = mapBtn.cloneNode(true);
+            const newInputBtn = inputBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            mapBtn.parentNode.replaceChild(newMapBtn, mapBtn);
+            inputBtn.parentNode.replaceChild(newInputBtn, inputBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            // 選擇：地圖點擊
+            newMapBtn.addEventListener('click', () => {
+                positionMethodModal.classList.add('hidden');
                 showModal("📍 請在地圖上【點擊】發生該事件的精確位置！");
                 map.once('click', (e) => {
                     if(isSystemReady) {
@@ -269,7 +394,57 @@
                     }
                 });
             });
-        });
+
+            // 選擇：手動輸入經緯度
+            newInputBtn.addEventListener('click', () => {
+                positionMethodModal.classList.add('hidden');
+                openCoordinateInputDialog(desc);
+            });
+
+            newCancelBtn.addEventListener('click', () => {
+                positionMethodModal.classList.add('hidden');
+            });
+        }
+
+        // 開啟座標輸入視窗
+        function openCoordinateInputDialog(desc) {
+            const inputField = document.getElementById('coord-input-value');
+            inputField.value = "";
+            coordinateInputModal.classList.remove('hidden');
+
+            const submitBtn = document.getElementById('coord-submit-btn');
+            const cancelBtn = document.getElementById('coord-cancel-btn');
+
+            const newSubmitBtn = submitBtn.cloneNode(true);
+            const newCancelBtn = cancelBtn.cloneNode(true);
+            submitBtn.parentNode.replaceChild(newSubmitBtn, submitBtn);
+            cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
+
+            newSubmitBtn.addEventListener('click', () => {
+                const val = inputField.value.trim();
+                if (!val) {
+                    showModal("⚠️ 請輸入座標內容！");
+                    return;
+                }
+                const parsed = parseCoordinatesInput(val);
+                if (parsed) {
+                    coordinateInputModal.classList.add('hidden');
+                    if(isSystemReady) {
+                        ws.send(JSON.stringify({ type: "add_sighting", data: { lat: parsed.lat, lng: parsed.lng, description: desc, timestamp: Date.now() }}));
+                        showModal(`✅ 成功新增事件點！\n座標：[${parsed.lat.toFixed(6)}, ${parsed.lng.toFixed(6)}]`);
+                        map.setView([parsed.lat, parsed.lng], 16, { animate: true }); // 移動地圖至新增的位置
+                    } else {
+                        showModal("⚠️ 系統未連線，無法送出指令！");
+                    }
+                } else {
+                    showModal("⚠️ 無法解析您的座標格式！\n請確認度分秒(DMS)或十進位格式是否正確。\n範例: 23°45'10.4\"N 120°23'40.0\"E");
+                }
+            });
+
+            newCancelBtn.addEventListener('click', () => {
+                coordinateInputModal.classList.add('hidden');
+            });
+        }
 
         // 打開管理出沒點列表
         manageSightingsBtn.addEventListener('click', () => {
