@@ -15,6 +15,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
+            background-color: #f3f4f6;
         }
         #map {
             width: 100vw;
@@ -28,16 +29,14 @@
             width: 100vw;
             height: 100vh;
             z-index: 1000;
-            pointer-events: none;
             display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .modal-active {
-            pointer-events: auto;
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
         }
         
+        /* 狗狗標籤樣式 */
         .user-label-container {
             display: flex;
             flex-direction: column;
@@ -70,49 +69,38 @@
     <div id="map"></div>
 
     <!-- UI Layer -->
-    <div id="ui-layer" class="modal-active transition-opacity duration-300">
+    <div id="ui-layer" class="transition-opacity duration-500">
         
-        <!-- Welcome / Name Input Modal -->
-        <div id="name-modal" class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md pointer-events-auto transform transition-transform scale-100 hidden">
-            <div class="text-center mb-6">
-                <div class="mx-auto bg-amber-100 text-amber-500 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-                    </svg>
-                </div>
-                <h2 id="name-modal-title" class="text-2xl font-bold text-gray-800">歡迎加入尋狗地圖</h2>
-                <p id="name-modal-desc" class="text-gray-600 mt-2 text-sm">輸入稱呼或直接開始（將配發隨機暱稱）。</p>
-            </div>
-            
-            <input type="text" id="user-name-input" placeholder="您的名字或稱呼 (選填)" class="w-full border-2 border-gray-200 rounded-xl p-3 text-lg focus:outline-none focus:border-amber-500 transition-colors mb-4" />
-            
-            <button id="start-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-colors flex justify-center items-center">
-                開始尋找
-            </button>
-        </div>
-
-        <!-- Permission Requesting / Error Modal -->
-        <div id="status-modal" class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md pointer-events-auto text-center">
-            <div class="mx-auto bg-blue-100 text-blue-500 w-16 h-16 rounded-full flex items-center justify-center mb-4" id="status-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        <!-- 核心啟動對話框 -->
+        <div id="startup-modal" class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md text-center transform transition-transform">
+            <div class="mx-auto bg-amber-100 text-amber-500 w-20 h-20 rounded-full flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
             </div>
-            <h2 id="status-title" class="text-xl font-bold text-gray-800">正在請求定位權限...</h2>
-            <p id="status-desc" class="text-gray-600 mt-2 text-sm">請在系統彈出的視窗中選擇「允許」，我們才能記錄您的搜尋軌跡。</p>
-            <button id="retry-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-xl shadow mt-4 hidden">
-                重新嘗試
+            
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">啟動尋狗地圖</h2>
+            <p class="text-gray-600 mb-6 text-sm">此應用程式需要您的「定位權限」才能顯示您與其他志工的位置及歷史軌跡。</p>
+            
+            <input type="text" id="user-name-input" placeholder="請輸入稱呼 (留空則隨機配發)" class="w-full border-2 border-gray-200 rounded-xl p-3 text-lg focus:outline-none focus:border-amber-500 transition-colors mb-4 text-center" />
+            
+            <!-- 這個按鈕是突破 iOS 限制的關鍵 -->
+            <button id="master-start-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-4 px-4 rounded-xl shadow-lg transition-transform active:scale-95 text-lg">
+                授權定位並開始
             </button>
+            
+            <p id="error-msg" class="text-red-500 text-sm mt-4 hidden font-medium"></p>
         </div>
 
-        <!-- Info Toast (Top right) -->
-        <div id="status-toast" class="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-lg shadow p-3 text-sm font-medium text-gray-700 hidden pointer-events-auto transition-opacity">
+        <!-- Info Toast -->
+        <div id="status-toast" class="absolute top-4 right-4 bg-white/90 backdrop-blur rounded-lg shadow p-3 text-sm font-medium text-gray-700 hidden">
             <div class="flex items-center gap-2">
                 <span class="relative flex h-3 w-3">
                   <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                   <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                 </span>
-                正在同步位置...
+                <span id="toast-text">定位同步中...</span>
             </div>
         </div>
     </div>
@@ -123,80 +111,190 @@
     <!-- App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- Firebase Setup ---
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'dog-finder-app';
-        
-        // --- State ---
-        let map;
-        let markersLayer;
-        let currentUser = null;
+        // --- 狀態變數 ---
+        let map, markersLayer;
+        let auth, db, appId, currentUser;
         let currentUserName = "";
         let userColor = "#f59e0b";
-        let watchId = null;
-        let allUsersData = {};
         let localHistory = []; 
         let lastSavedPos = null;
-        let initialPositionAcquired = false; // 標記是否已經成功取得第一次定位
+        let allUsersData = {};
+        let isSystemReady = false;
 
-        // UI Elements
+        // --- DOM 元素 ---
         const uiLayer = document.getElementById('ui-layer');
-        const statusModal = document.getElementById('status-modal');
-        const statusTitle = document.getElementById('status-title');
-        const statusDesc = document.getElementById('status-desc');
-        const statusIcon = document.getElementById('status-icon');
-        const retryBtn = document.getElementById('retry-btn');
-        
-        const nameModal = document.getElementById('name-modal');
-        const modalTitle = document.getElementById('name-modal-title');
-        const modalDesc = document.getElementById('name-modal-desc');
         const nameInput = document.getElementById('user-name-input');
-        const startBtn = document.getElementById('start-btn');
+        const masterStartBtn = document.getElementById('master-start-btn');
+        const errorMsg = document.getElementById('error-msg');
         const statusToast = document.getElementById('status-toast');
+        const toastText = document.getElementById('toast-text');
 
-        // --- Initialization ---
+        // --- 初始化地圖 ---
         function initMap() {
             map = L.map('map', { zoomControl: false }).setView([23.6978, 120.9605], 7);
-            
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors',
-                maxZoom: 19
-            }).addTo(map);
-            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             markersLayer = L.layerGroup().addTo(map);
+            
+            // 綁定 Leaflet 內建的定位事件 (多重觸發法之一)
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
 
             setInterval(renderMap, 15000); 
         }
 
-        async function initAuth() {
+        // --- 初始化 Firebase (延後至取得定位後才確保登入，避免非同步阻斷) ---
+        async function setupFirebase() {
+            if (isSystemReady) return;
+            
+            const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+            const app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            appId = typeof __app_id !== 'undefined' ? __app_id : 'dog-finder-app';
+
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (error) {
-                console.error("Auth error:", error);
-                showStatusError("系統登入失敗，請重新整理網頁再試。");
+                currentUser = auth.currentUser;
+                isSystemReady = true;
+                
+                // 登入成功後開始監聽所有人位置
+                listenToAllLocations();
+                // 把已經取得的歷史軌跡上傳
+                saveLocationToFirestore();
+            } catch (e) {
+                console.error("Firebase Auth Error:", e);
+                showError("連線到資料庫失敗，但您的本地軌跡仍在記錄中。");
             }
         }
 
-        function generateColorFromId(id) {
-            let hash = 0;
-            for (let i = 0; i < id.length; i++) {
-                hash = id.charCodeAt(i) + ((hash << 5) - hash);
-            }
-            const h = Math.abs(hash) % 360;
-            return `hsl(${h}, 80%, 45%)`;
+        // --- 核心定位處理 ---
+        
+        function onLocationFound(e) {
+            handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
         }
 
+        function onLocationError(e) {
+            console.error("Leaflet Geo Error:", e.message);
+        }
+
+        function handleValidPosition(lat, lng, timestamp) {
+            if (localHistory.length === 0) {
+                map.setView([lat, lng], 16);
+            }
+
+            if (lastSavedPos) {
+                const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
+                if (dist < 5) return; // 小於 5 公尺不記錄
+            }
+
+            const newPoint = { lat, lng, timestamp };
+            localHistory.push(newPoint);
+            lastSavedPos = newPoint;
+
+            // 清理舊資料 (1小時)
+            const oneHourAgo = timestamp - 60 * 60 * 1000;
+            localHistory = localHistory.filter(p => p.timestamp > oneHourAgo);
+            if (localHistory.length > 200) localHistory = localHistory.slice(-200);
+
+            // 若 Firebase 就緒，則上傳
+            if (isSystemReady) {
+                saveLocationToFirestore();
+            }
+        }
+
+        // --- 最關鍵的點擊事件 (突破 iOS 限制) ---
+        // 必須直接呼叫，中間不能有任何 setTimeout, await 或 Promise
+        masterStartBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            errorMsg.classList.add('hidden');
+            masterStartBtn.innerText = "請求權限中...";
+
+            // 處理暱稱
+            let name = nameInput.value.trim();
+            if (!name) {
+                name = `尋狗志工_${Math.floor(1000 + Math.random() * 9000)}`;
+            }
+            currentUserName = name;
+            // 暫時用隨機色，等取得 User UID 後會再校正
+            userColor = `hsl(${Math.random() * 360}, 80%, 45%)`;
+
+            // 【第一重觸發】：HTML5 getCurrentPosition
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
+                        finishSetup();
+                    },
+                    (error) => {
+                        handleHTML5GeoError(error);
+                    },
+                    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+                );
+
+                // 【第二重觸發】：HTML5 watchPosition (同時啟動連續追蹤)
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
+                    },
+                    (error) => { console.warn("Watch Geo Error:", error); },
+                    { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+                );
+            }
+
+            // 【第三重觸發】：Leaflet 內建定位功能
+            map.locate({ setView: false, watch: true, enableHighAccuracy: true, maximumAge: 5000 });
+        });
+
+        // 成功取得權限後的收尾動作
+        function finishSetup() {
+            // 隱藏 UI
+            uiLayer.style.opacity = '0';
+            setTimeout(() => { uiLayer.style.display = 'none'; }, 500);
+            
+            // 顯示 Toast
+            statusToast.classList.remove('hidden');
+            
+            // 現在才安全地去設定 Firebase (背景非同步處理，不干擾定位)
+            setupFirebase().then(() => {
+                // 更新顏色
+                if (currentUser) {
+                    let hash = 0;
+                    for (let i = 0; i < currentUser.uid.length; i++) hash = currentUser.uid.charCodeAt(i) + ((hash << 5) - hash);
+                    userColor = `hsl(${Math.abs(hash) % 360}, 80%, 45%)`;
+                    saveLocationToFirestore();
+                }
+            });
+        }
+
+        // 錯誤處理
+        function handleHTML5GeoError(error) {
+            masterStartBtn.innerText = "授權定位並開始";
+            console.error("Geo Error Code:", error.code, "Msg:", error.message);
+            let msg = "無法取得位置。";
+            if (error.code === 1) {
+                msg = "您拒絕了定位權限，或手機設定中封鎖了 Safari 的定位服務。請至手機「設定 > 隱私權 > 定位服務」開啟，然後重整網頁再試。";
+            } else if (error.code === 2) {
+                msg = "目前無法獲取您的位置，請確認 GPS 已開啟。";
+            } else if (error.code === 3) {
+                msg = "獲取位置逾時，請檢查網路。";
+            }
+            showError(msg);
+        }
+
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
+        }
+
+        // --- 工具函數與 Firestore 邏輯 ---
         function getDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3; 
             const p1 = lat1 * Math.PI/180;
@@ -204,144 +302,12 @@
             const dp = (lat2-lat1) * Math.PI/180;
             const dl = (lon2-lon1) * Math.PI/180;
             const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
-        // --- UI 控制 ---
-        function showStatusError(title, desc = "") {
-            statusTitle.innerText = title;
-            statusTitle.className = "text-xl font-bold text-red-600";
-            statusDesc.innerText = desc;
-            statusIcon.className = "mx-auto bg-red-100 text-red-500 w-16 h-16 rounded-full flex items-center justify-center mb-4";
-            statusIcon.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-            `;
-            retryBtn.classList.remove('hidden');
-        }
-
-        function hideStatusModal() {
-            statusModal.classList.add('hidden');
-        }
-
-        function showNameModal(isReturningUser) {
-            nameModal.classList.remove('hidden');
-            if (isReturningUser) {
-                modalTitle.innerText = `歡迎回來，${currentUserName}`;
-                modalDesc.innerText = "您已成功授權定位，請點擊下方按鈕繼續尋找狗狗。";
-                nameInput.style.display = 'none'; 
-                startBtn.innerText = "繼續尋找";
-            }
-        }
-
-        // --- 定位邏輯 ---
-        
-        // 處理定位錯誤
-        function handleGeoError(error) {
-            console.error("Geolocation error - Code:", error.code, "Message:", error.message);
-            
-            if (error.code === 1) {
-                showStatusError("無法取得定位權限", "請至手機設定中，確認您的瀏覽器（如 Safari / Chrome）已允許存取位置資訊。若您剛剛按了拒絕，必須至設定中手動開啟。");
-            } else if (error.code === 2) {
-                showStatusError("無法獲取位置", "請確認設備的定位功能（GPS）已開啟，且位於收訊良好的地方。");
-            } else if (error.code === 3) {
-                showStatusError("獲取位置逾時", "請檢查您的網路連線或稍後再試。");
-            } else {
-                showStatusError("定位發生未知錯誤", error.message);
-            }
-        }
-
-        // 處理單一座標點
-        async function processNewPosition(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const now = Date.now();
-            
-            // 第一次取得座標，移動地圖視角
-            if (localHistory.length === 0) {
-                map.setView([lat, lng], 16);
-            }
-
-            if (lastSavedPos) {
-                const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                if (dist < 5) return; 
-            }
-
-            const newPoint = { lat, lng, timestamp: now };
-            localHistory.push(newPoint);
-            lastSavedPos = newPoint;
-
-            const oneHourAgo = now - 60 * 60 * 1000;
-            localHistory = localHistory.filter(p => p.timestamp > oneHourAgo);
-            
-            if (localHistory.length > 200) {
-                localHistory = localHistory.slice(-200);
-            }
-
-            // 只有在使用者已經填寫完名稱（確認開始後），才真正上傳到 Firestore
-            if (currentUserName) {
-                await saveLocationToFirestore();
-            }
-        }
-
-        // 步驟 1：網頁一開啟就請求權限
-        function requestInitialLocation(isReturningUser) {
-            if (!navigator.geolocation) {
-                showStatusError("您的瀏覽器不支援定位功能。");
-                return;
-            }
-
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    // 成功取得權限與初始位置
-                    initialPositionAcquired = true;
-                    hideStatusModal();
-                    
-                    // 暫存第一筆位置，但還不上傳
-                    processNewPosition(position);
-
-                    // 顯示輸入暱稱的畫面
-                    showNameModal(isReturningUser);
-                },
-                handleGeoError,
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                }
-            );
-        }
-
-        // 步驟 2：使用者點擊「開始尋找」後，正式啟動連續追蹤
-        function startContinuousTracking() {
-            statusToast.classList.remove('hidden');
-            
-            // 先強制上傳一次目前已知的初始位置
-            saveLocationToFirestore();
-
-            watchId = navigator.geolocation.watchPosition(
-                processNewPosition,
-                (error) => {
-                    // 連續追蹤中斷時的處理
-                    console.error("Tracking lost:", error.message);
-                    statusToast.classList.add('hidden');
-                    // 這裡可以選擇不彈出大錯誤，只在 console 記錄，避免干擾使用者操作地圖
-                },
-                {
-                    enableHighAccuracy: true,
-                    maximumAge: 10000,
-                    timeout: 27000 
-                }
-            );
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         async function saveLocationToFirestore() {
-            if (!currentUser || !currentUserName || localHistory.length === 0) return;
-            
+            if (!isSystemReady || !currentUser || localHistory.length === 0) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
-            
             try {
                 await setDoc(docRef, {
                     userName: currentUserName,
@@ -349,27 +315,20 @@
                     history: localHistory,
                     lastUpdate: Date.now()
                 }, { merge: true });
-            } catch (e) {
-                console.error("Error saving location:", e);
-            }
+                toastText.innerText = "位置同步成功";
+            } catch (e) {}
         }
 
         function listenToAllLocations() {
-            if (!currentUser) return;
             const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
-            
             onSnapshot(collectionRef, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added" || change.type === "modified") {
                         allUsersData[change.doc.id] = change.doc.data();
                     }
-                    if (change.type === "removed") {
-                        delete allUsersData[change.doc.id];
-                    }
+                    if (change.type === "removed") delete allUsersData[change.doc.id];
                 });
                 renderMap();
-            }, (error) => {
-                console.error("Firestore listen error:", error);
             });
         }
 
@@ -383,38 +342,23 @@
                 if (!userData.history || userData.history.length === 0) return;
 
                 const history = userData.history;
-                const userColor = userData.color || generateColorFromId(uid);
+                const cColor = userData.color || '#333';
 
                 history.forEach((point, index) => {
                     const age = now - point.timestamp;
-                    let opacity = 1 - (age / maxFadeTime);
-                    opacity = Math.max(0.15, Math.min(1.0, opacity));
+                    let opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
 
                     if (age < 60 * 60 * 1000) { 
-                        const isLatest = index === history.length - 1;
-
-                        if (!isLatest) {
+                        if (index !== history.length - 1) {
                             L.circleMarker([point.lat, point.lng], {
-                                radius: 4,
-                                fillColor: userColor,
-                                color: userColor,
-                                weight: 1,
-                                opacity: opacity * 0.5,
-                                fillOpacity: opacity
+                                radius: 4, fillColor: cColor, color: cColor, weight: 1, opacity: opacity * 0.5, fillOpacity: opacity
                             }).addTo(markersLayer);
                         } else {
                             const customIcon = L.divIcon({
                                 className: 'custom-div-icon',
-                                html: `
-                                    <div class="user-label-container">
-                                        <div class="user-name-tag">${userData.userName}</div>
-                                        <div class="user-avatar" style="background-color: ${userColor};"></div>
-                                    </div>
-                                `,
-                                iconSize: [0, 0],
-                                iconAnchor: [0, 0]
+                                html: `<div class="user-label-container"><div class="user-name-tag">${userData.userName}</div><div class="user-avatar" style="background-color: ${cColor};"></div></div>`,
+                                iconSize: [0, 0], iconAnchor: [0, 0]
                             });
-
                             L.marker([point.lat, point.lng], { icon: customIcon, zIndexOffset: 1000 }).addTo(markersLayer);
                         }
                     }
@@ -422,86 +366,9 @@
             });
         }
 
-        // --- Event Listeners ---
-        retryBtn.addEventListener('click', () => {
-            // 恢復載入中狀態並重試
-            statusTitle.innerText = "正在請求定位權限...";
-            statusTitle.className = "text-xl font-bold text-gray-800";
-            statusDesc.innerText = "請在系統彈出的視窗中選擇「允許」，我們才能記錄您的搜尋軌跡。";
-            statusIcon.className = "mx-auto bg-blue-100 text-blue-500 w-16 h-16 rounded-full flex items-center justify-center mb-4";
-            statusIcon.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-            `;
-            retryBtn.classList.add('hidden');
-            
-            // 這裡傳入 false 因為我們不知道它是不是舊用戶，但邏輯上它會重新跑一次 request
-            requestInitialLocation(false); 
-        });
-
-        startBtn.addEventListener('click', () => {
-            if (!initialPositionAcquired) return; // 防呆：如果還沒拿到初始權限，不能按
-
-            // 如果輸入框沒有被隱藏，代表是新使用者或未設定名稱
-            if (nameInput.style.display !== 'none') {
-                let name = nameInput.value.trim();
-                
-                if (!name) {
-                    const randomId = Math.floor(1000 + Math.random() * 9000);
-                    name = `尋狗志工_${randomId}`;
-                } else if (name.length > 15) {
-                    alert("稱呼請限制在15字以內。"); // 這裡用 alert 比較簡單，因為 modal 即將關閉
-                    return;
-                }
-                
-                currentUserName = name;
-                userColor = generateColorFromId(currentUser.uid);
-            }
-
-            // 隱藏整個 UI 層
-            uiLayer.classList.remove('modal-active');
-            nameModal.classList.add('scale-95', 'opacity-0');
-            setTimeout(() => {
-                nameModal.classList.add('hidden');
-                uiLayer.style.pointerEvents = 'none';
-            }, 300);
-
-            // 啟動連續定位並上傳
-            startContinuousTracking();
-        });
-
-        // --- Main Execution ---
+        // 初始化
         window.addEventListener('DOMContentLoaded', () => {
             initMap();
-            initAuth();
-            
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    currentUser = user;
-                    let isReturningUser = false;
-                    
-                    // 檢查是否為老用戶
-                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', user.uid);
-                    try {
-                        const docSnap = await getDoc(docRef);
-                        if (docSnap.exists() && docSnap.data().userName) {
-                            isReturningUser = true;
-                            currentUserName = docSnap.data().userName;
-                            userColor = docSnap.data().color || generateColorFromId(user.uid);
-                            localHistory = docSnap.data().history || [];
-                        }
-                    } catch (e) {
-                        console.error("Error fetching user profile:", e);
-                    }
-
-                    // 登入完成後，立刻主動請求定位權限
-                    requestInitialLocation(isReturningUser);
-
-                    // 即使還沒開始自己的定位，也可以先看看其他人的位置
-                    listenToAllLocations();
-                }
-            });
         });
     </script>
 </body>
