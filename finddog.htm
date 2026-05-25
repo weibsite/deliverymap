@@ -146,6 +146,7 @@
         <div id="map"></div>
     </div>
 
+    <!-- 基礎覆蓋介面 -->
     <div id="startup-overlay" class="absolute inset-0 z-[3000] bg-black/70 flex items-center justify-center transition-opacity duration-300">
         <div class="pixel-panel p-6 w-11/12 max-w-md text-center transform transition-transform">
             <h2 class="text-2xl font-bold text-gray-900 mb-2">尋狗地圖</h2>
@@ -161,10 +162,46 @@
         </div>
     </div>
 
-    <div id="custom-modal" class="hidden absolute inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
+    <!-- 共用訊息彈出窗 -->
+    <div id="custom-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
         <div class="pixel-panel p-6 w-full max-w-sm text-center">
             <p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
-            <button id="custom-modal-btn" class="pixel-btn w-full py-2">確定</button>
+            <button id="custom-modal-btn" class="pixel-btn w-full py-2 bg-blue-500 text-white">確定</button>
+        </div>
+    </div>
+
+    <!-- 管理員專用：輸入對話框 -->
+    <div id="input-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <h3 id="input-modal-title" class="text-gray-900 font-bold mb-4"></h3>
+            <textarea id="input-modal-text" class="pixel-input w-full p-2 mb-4 h-32" placeholder="請輸入內容..."></textarea>
+            <div class="flex gap-2">
+                <button id="input-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button>
+                <button id="input-submit-btn" class="pixel-btn flex-1 py-2 bg-blue-500 text-white">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理員專用：確認對話框 -->
+    <div id="confirm-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <p id="confirm-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
+            <div class="flex gap-2">
+                <button id="confirm-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button>
+                <button id="confirm-ok-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">確定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理員專用：登入對話框 -->
+    <div id="admin-login-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <h3 class="text-gray-900 font-bold mb-4 text-xl">👑 管理員登入</h3>
+            <input type="password" id="admin-pwd-input" class="pixel-input w-full p-3 mb-4 text-center font-sans" placeholder="請輸入密碼">
+            <div class="flex gap-2">
+                <button id="admin-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button>
+                <button id="admin-submit-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">登入</button>
+            </div>
         </div>
     </div>
 
@@ -173,13 +210,19 @@
         <span id="toast-text">連線中...</span>
     </div>
 
+    <!-- 公告面板 -->
     <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md">
-        <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm">📢 飼主澄清公告</div>
-        <div class="leading-relaxed mt-2">
-            之前有其他的狗遺失<br>
-            小鳳是我姑姑的狗 我是幫找<br>
-            嘎嘎是我大學收養 寄養在同學家被弄丟
+        <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm flex justify-between items-center">
+            <span>📢 最新公告</span>
         </div>
+        <div id="announcement-text" class="leading-relaxed mt-2 whitespace-pre-wrap">載入中...</div>
+    </div>
+
+    <!-- 管理員控制面板 -->
+    <div id="admin-panel" class="absolute top-4 left-4 z-[2000] pixel-panel p-2 hidden bg-white/95 w-32 border-red-500 shadow-[6px_6px_0px_rgba(239,68,68,1)]">
+        <div class="text-red-600 mb-2 border-b-2 border-black pb-1 text-xs font-bold text-center">👑 管理員工具</div>
+        <button id="add-sighting-btn" class="pixel-btn w-full p-2 mb-2 text-xs bg-green-500 text-white">📍 增設出沒點</button>
+        <button id="update-announce-btn" class="pixel-btn w-full p-2 text-xs bg-purple-500 text-white">📢 更新公告</button>
     </div>
 
     <!-- 左下角控制按鈕群，增加間距依序往上堆疊 -->
@@ -202,21 +245,24 @@
         </svg>
     </button>
 
+    <!-- 右下角資訊與管理員隱藏入口 -->
     <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">
         版權所有，桃園八德阿偉製作<br>
         <a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a>
+        <div class="mt-1 pt-1 border-t-2 border-gray-300 text-gray-400 cursor-pointer hover:text-red-500 text-[10px]" id="admin-login-trigger">管理員登入</div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script type="module">
+        // 加入 addDoc 與 deleteDoc 以支援事件與公告操作
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot, addDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-analytics.js";
 
         // --- 狀態變數 ---
-        let map, markersLayer;
+        let map, markersLayer, sightingsLayer;
         let auth, db, analytics, appId, currentUser;
         
         let currentUserName = "";
@@ -224,11 +270,13 @@
         let localHistory = []; 
         let lastSavedPos = null;
         let allUsersData = {};
+        let allSightings = {};
         
         let watchId = null;
         let isSystemReady = false;
         let isOfflineMode = false;
         let isSpectatorMode = false; 
+        let isAdmin = false;
         
         // 新功能狀態
         let isFogVisible = true;
@@ -253,14 +301,22 @@
         const toastText = document.getElementById('toast-text');
         const locateBtn = document.getElementById('locate-btn');
         const spectatorBtn = document.getElementById('spectator-btn');
+        
+        // Modal DOMs
         const customModal = document.getElementById('custom-modal');
         const customModalText = document.getElementById('custom-modal-text');
         const customModalBtn = document.getElementById('custom-modal-btn');
         
+        // Buttons
         const toggleFogBtn = document.getElementById('toggle-fog-btn');
         const navPinBtn = document.getElementById('nav-pin-btn');
         const forceUploadBtn = document.getElementById('force-upload-btn');
+        const adminLoginTrigger = document.getElementById('admin-login-trigger');
+        const adminPanel = document.getElementById('admin-panel');
+        const addSightingBtn = document.getElementById('add-sighting-btn');
+        const updateAnnounceBtn = document.getElementById('update-announce-btn');
 
+        // --- 工具與安全防護 ---
         function escapeHTML(str) {
             if (!str) return '';
             return String(str)
@@ -271,14 +327,64 @@
                 .replace(/'/g, '&#39;');
         }
 
+        // 客製化提示視窗
         function showModal(msg) {
             customModalText.innerText = msg;
             customModal.classList.remove('hidden');
         }
+        customModalBtn.addEventListener('click', () => { customModal.classList.add('hidden'); });
 
-        customModalBtn.addEventListener('click', () => {
-            customModal.classList.add('hidden');
-        });
+        // 客製化輸入視窗
+        function showInputModal(title, placeholder, defaultValue, onSubmit) {
+            document.getElementById('input-modal-title').innerText = title;
+            const textInput = document.getElementById('input-modal-text');
+            textInput.placeholder = placeholder;
+            textInput.value = defaultValue;
+            document.getElementById('input-modal').classList.remove('hidden');
+            
+            const submitBtn = document.getElementById('input-submit-btn');
+            const cancelBtn = document.getElementById('input-cancel-btn');
+            
+            const newSubmit = submitBtn.cloneNode(true);
+            const newCancel = cancelBtn.cloneNode(true);
+            submitBtn.parentNode.replaceChild(newSubmit, submitBtn);
+            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            
+            newSubmit.addEventListener('click', () => {
+                const val = document.getElementById('input-modal-text').value.trim();
+                if(val) {
+                    document.getElementById('input-modal').classList.add('hidden');
+                    onSubmit(val);
+                } else {
+                    showModal("內容不能為空白！");
+                }
+            });
+            newCancel.addEventListener('click', () => {
+                document.getElementById('input-modal').classList.add('hidden');
+            });
+        }
+
+        // 客製化確認視窗
+        function showConfirm(msg, onConfirm) {
+            document.getElementById('confirm-modal-text').innerText = msg;
+            document.getElementById('confirm-modal').classList.remove('hidden');
+            
+            const okBtn = document.getElementById('confirm-ok-btn');
+            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            
+            const newOk = okBtn.cloneNode(true);
+            const newCancel = cancelBtn.cloneNode(true);
+            okBtn.parentNode.replaceChild(newOk, okBtn);
+            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            
+            newOk.addEventListener('click', () => {
+                document.getElementById('confirm-modal').classList.add('hidden');
+                onConfirm();
+            });
+            newCancel.addEventListener('click', () => {
+                document.getElementById('confirm-modal').classList.add('hidden');
+            });
+        }
 
         function generateRandomColor() {
             const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
@@ -292,6 +398,28 @@
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             
             markersLayer = L.layerGroup().addTo(map);
+            sightingsLayer = L.layerGroup().addTo(map); // 獨立的事件圖層
+
+            // 綁定 Popup 打開事件，動態附加刪除按鈕邏輯 (避免使用不安全的 onclick)
+            map.on('popupopen', function(e) {
+                const popupNode = e.popup._contentNode;
+                const deleteBtn = popupNode.querySelector('.admin-delete-btn');
+                if (deleteBtn && isAdmin) {
+                    deleteBtn.addEventListener('click', () => {
+                        const id = deleteBtn.getAttribute('data-id');
+                        showConfirm("確定要永久刪除這個出沒紀錄嗎？", async () => {
+                            try {
+                                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'sightings', id));
+                                showModal("✅ 紀錄已刪除！");
+                                map.closePopup();
+                            } catch(err) {
+                                console.error(err);
+                                showModal("刪除失敗，請檢查網路。");
+                            }
+                        });
+                    });
+                }
+            });
 
             const centerIcon = L.divIcon({
                 className: 'custom-div-icon',
@@ -363,6 +491,8 @@
                         currentUser = user;
                         isSystemReady = true;
                         listenToAllLocations();
+                        listenToSightings();
+                        listenToAnnouncements();
                         checkLocalSetupAndStart();
                     }
                 });
@@ -372,6 +502,166 @@
                 checkLocalSetupAndStart();
             }
         }
+
+        // --- 管理員系統 (防 XSS / XOR 混淆加密) ---
+        adminLoginTrigger.addEventListener('click', () => {
+            document.getElementById('admin-login-modal').classList.remove('hidden');
+            document.getElementById('admin-pwd-input').value = "";
+        });
+
+        document.getElementById('admin-cancel-btn').addEventListener('click', () => {
+            document.getElementById('admin-login-modal').classList.add('hidden');
+        });
+
+        document.getElementById('admin-submit-btn').addEventListener('click', () => {
+            const pwd = document.getElementById('admin-pwd-input').value;
+            // 密碼被使用 XOR(165) 轉換成了無意義的數字陣列，無法從原始碼直接看出是 Bb870609
+            const targetHash = "231,199,157,154,149,147,149,156";
+            const inputHash = pwd.split('').map(c => c.charCodeAt(0) ^ 0xA5).join(',');
+
+            if (inputHash === targetHash) {
+                isAdmin = true;
+                document.getElementById('admin-login-modal').classList.add('hidden');
+                adminLoginTrigger.classList.add('hidden');
+                adminPanel.classList.remove('hidden');
+                renderSightings(); // 重新渲染以加入刪除按鈕
+                showModal("登入成功！已啟用管理員模式。");
+            } else {
+                showModal("密碼錯誤，請重新確認。");
+            }
+        });
+
+        // 管理員：新增事件點
+        addSightingBtn.addEventListener('click', () => {
+            if(!isAdmin) return;
+            showInputModal(
+                "📍 新增疑似出沒點", 
+                "請詳細描述此事件點（例如：看到很像的黑狗在超商門口發呆）...", 
+                "", 
+                (desc) => {
+                    showModal("📍 請在地圖上【點擊】發生該事件的精確位置！");
+                    // 註冊一次性的地圖點擊監聽
+                    map.once('click', async (e) => {
+                        const lat = e.latlng.lat;
+                        const lng = e.latlng.lng;
+                        try {
+                            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'sightings');
+                            await addDoc(collectionRef, {
+                                lat, lng, 
+                                description: desc,
+                                timestamp: Date.now()
+                            });
+                            showModal("✅ 成功新增事件點！所有人皆可看見此標記。");
+                        } catch(err) {
+                            console.error(err);
+                            showModal("新增失敗，請檢查網路連線。");
+                        }
+                    });
+                }
+            );
+        });
+
+        // 管理員：更新公告
+        updateAnnounceBtn.addEventListener('click', () => {
+            if(!isAdmin) return;
+            const currentTextNode = document.getElementById('announcement-text');
+            // 將 <br> 轉回 \n 方便編輯
+            let currentRawText = currentTextNode.innerHTML.replace(/<br\s*[\/]?>/gi, '\n').trim();
+            if(currentRawText === "載入中...") currentRawText = "";
+
+            showInputModal(
+                "📢 更新全域公告", 
+                "請輸入最新的公告內容...", 
+                currentRawText, 
+                async (text) => {
+                    try {
+                        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'announcements', 'current');
+                        await setDoc(docRef, { text, timestamp: Date.now() });
+                        showModal("✅ 公告更新成功！");
+                    } catch(err) {
+                        console.error(err);
+                        showModal("更新失敗。");
+                    }
+                }
+            );
+        });
+
+        // 監聽並渲染公告
+        function listenToAnnouncements() {
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'announcements', 'current');
+            onSnapshot(docRef, (docSnap) => {
+                const announcementTextContainer = document.getElementById('announcement-text');
+                if (docSnap.exists() && docSnap.data().text) {
+                    // 安全過濾並替換換行符號
+                    const safeText = escapeHTML(docSnap.data().text).replace(/\n/g, '<br>');
+                    announcementTextContainer.innerHTML = safeText;
+                } else {
+                    announcementTextContainer.innerHTML = "目前無最新公告。";
+                }
+            });
+        }
+
+        // 監聽並渲染疑似出沒點
+        function listenToSightings() {
+            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'sightings');
+            onSnapshot(collectionRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added" || change.type === "modified") {
+                        allSightings[change.doc.id] = change.doc.data();
+                    }
+                    if (change.type === "removed") {
+                        delete allSightings[change.doc.id];
+                    }
+                });
+                renderSightings();
+            });
+        }
+
+        function renderSightings() {
+            if (!sightingsLayer) return;
+            sightingsLayer.clearLayers();
+            
+            Object.keys(allSightings).forEach(id => {
+                const data = allSightings[id];
+                const safeDesc = escapeHTML(data.description);
+                // 格式化日期
+                const d = new Date(data.timestamp);
+                const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                
+                const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`;
+
+                const icon = L.divIcon({
+                    className: 'custom-div-icon',
+                    html: `
+                        <div class="user-label-container" style="bottom: 12px;">
+                            <div class="user-name-tag pixel-panel" style="color: #1a202c; background-color: #fef08a; border-color: #1a202c; animation: blink-pixel 2s infinite alternate;">⚠️ 疑似出沒</div>
+                            <div style="font-size: 28px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐾</div>
+                        </div>
+                    `,
+                    iconSize: [0, 0],
+                    iconAnchor: [0, 0]
+                });
+
+                const marker = L.marker([data.lat, data.lng], { icon, zIndexOffset: 3000 }).addTo(sightingsLayer);
+                
+                // 只有管理員會被加上刪除按鈕的 HTML
+                const adminDeleteHtml = isAdmin 
+                    ? `<button data-id="${id}" class="admin-delete-btn mt-3 p-1 border-2 border-red-500 text-xs text-red-500 hover:bg-red-500 hover:text-white transition-colors w-full text-center cursor-pointer font-bold">🗑️ 管理員：刪除此紀錄</button>` 
+                    : '';
+
+                marker.bindPopup(`
+                    <div class="p-2 w-48 font-bold text-gray-900">
+                        <div class="border-b-2 border-black pb-1 mb-2 text-sm text-blue-600">🕒 時間：${dateStr}</div>
+                        <div class="text-sm mb-4 whitespace-pre-wrap leading-relaxed">${safeDesc}</div>
+                        <a href="${gmapsUrl}" target="_blank" class="pixel-btn block text-center py-2 text-xs bg-blue-500 text-white shadow-[4px_4px_0px_#1a202c] no-underline">
+                            🚀 開啟 Google 導航
+                        </a>
+                        ${adminDeleteHtml}
+                    </div>
+                `, { className: 'pixel-popup', closeButton: true, offset: [0, -30] });
+            });
+        }
+
 
         // --- 8-bit 像素迷霧系統 ---
         function initFogSystem() {
@@ -522,12 +812,11 @@
         function checkLocalSetupAndStart() {
             const savedName = localStorage.getItem('dogMap_userName');
             
-            // 安全修正：使用 Regex 嚴格驗證 localStorage 取出的顏色字串，防範 XSS 注入
             const rawColor = localStorage.getItem('dogMap_userColor') || '';
             const savedColor = /^#[0-9a-fA-F]{6}$/i.test(rawColor) ? rawColor : null;
 
             if (savedName) {
-                currentUserName = escapeHTML(savedName); // 多加一層防護
+                currentUserName = escapeHTML(savedName); 
                 dbUserColor = savedColor || generateRandomColor();
                 if (!savedColor) localStorage.setItem('dogMap_userColor', dbUserColor);
 
@@ -551,7 +840,6 @@
             if (!name) name = `P${Math.floor(100 + Math.random() * 900)}`;
             currentUserName = name;
             
-            // 生成安全的 hex 色碼
             dbUserColor = generateRandomColor();
 
             localStorage.setItem('dogMap_userName', currentUserName);
@@ -567,25 +855,23 @@
             
             if (isFogVisible) {
                 toggleFogBtn.innerText = "👁️ 關閉迷霧";
-                toggleFogBtn.style.backgroundColor = "#f59e0b"; // 恢復黃色
+                toggleFogBtn.style.backgroundColor = "#f59e0b"; 
                 requestFogRender();
             } else {
                 toggleFogBtn.innerText = "🌫️ 開啟迷霧";
-                toggleFogBtn.style.backgroundColor = "#9ca3af"; // 變成灰色提醒已關閉
+                toggleFogBtn.style.backgroundColor = "#9ca3af"; 
             }
         });
 
         // --- 導航標記(拖曳功能)邏輯 ---
         navPinBtn.addEventListener('click', () => {
             if (navMarker) {
-                // 如果已經有標記，則移除
                 map.removeLayer(navMarker);
                 navMarker = null;
                 navPinBtn.innerText = "📍 導航標記";
                 navPinBtn.style.backgroundColor = "#f59e0b";
                 navPinBtn.style.color = "#1a202c";
             } else {
-                // 如果沒有標記，在畫面中央建立一個可拖曳標記
                 const center = map.getCenter();
                 navMarker = L.marker(center, {
                     draggable: true,
@@ -598,7 +884,6 @@
                     })
                 }).addTo(map);
 
-                // 更新標記上的 Popup (包含導航按鈕)
                 const updatePopup = () => {
                     const pos = navMarker.getLatLng();
                     const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${pos.lat},${pos.lng}`;
@@ -616,9 +901,7 @@
                     }).openPopup();
                 };
 
-                // 綁定拖曳結束事件
                 navMarker.on('dragend', updatePopup);
-                // 創建後立刻顯示導航視窗
                 updatePopup();
 
                 navPinBtn.innerText = "❌ 移除標記";
@@ -643,14 +926,12 @@
                 return;
             }
 
-            // maximumAge: 0 強制要求不使用快取，取得當下最新位置
             navigator.geolocation.getCurrentPosition(
                 async (position) => {
                     const lat = position.coords.latitude;
                     const lng = position.coords.longitude;
                     const timestamp = Date.now();
 
-                    // 強制寫入歷史軌跡
                     const newPoint = { lat, lng, timestamp };
                     localHistory.push(newPoint);
                     lastSavedPos = newPoint;
@@ -670,7 +951,6 @@
                     map.setView([lat, lng], 17, { animate: true });
                     renderMap(); 
 
-                    // 強制上傳 Firebase
                     if (isSystemReady && currentUser) {
                         try {
                             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
@@ -684,7 +964,7 @@
                             
                             document.getElementById('sync-ping').style.backgroundColor = 'white';
                             setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
-                            toastText.innerText = "上傳搜索成果成功";
+                            toastText.innerText = "強制打卡成功";
                             showModal("✅ 已成功獲取並上傳您目前的位置！");
                         } catch (e) {
                             console.error("Force Upload Error", e);
@@ -697,7 +977,6 @@
                 },
                 (error) => {
                     resetForceUploadBtn();
-                    // 呼叫統一的錯誤處理（處理沒權限、被拒絕等狀況）
                     handleGeoError(error, false); 
                 },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -705,7 +984,7 @@
         });
 
         function resetForceUploadBtn() {
-            forceUploadBtn.innerText = "📤 回報已搜索完成";
+            forceUploadBtn.innerText = "📤 強制打卡";
             forceUploadBtn.style.backgroundColor = "#f59e0b";
         }
 
