@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>尋狗地圖 - 像素探索版</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html {
@@ -136,13 +134,11 @@
         <div id="map"></div>
     </div>
 
-    <!-- 啟動遮罩層 -->
     <div id="startup-overlay" class="absolute inset-0 z-[3000] bg-black/70 flex items-center justify-center transition-opacity duration-300">
         <div class="pixel-panel p-6 w-11/12 max-w-md text-center transform transition-transform">
             <h2 class="text-2xl font-bold text-gray-900 mb-2">尋狗地圖</h2>
             <p class="text-gray-700 mb-4 text-sm font-bold">▶ 像素迷霧探索版 ◀<br><br>請輸入稱呼並允許定位，您的移動將以像素方塊驅散周圍迷霧！</p>
             
-            <!-- 加入 maxlength="15" 限制輸入長度 -->
             <input type="text" id="user-name-input" maxlength="15" placeholder="代號 (留空則隨機)" class="pixel-input w-full p-3 text-lg mb-4 text-center text-gray-900" />
             
             <button id="master-start-btn" class="pixel-btn w-full py-4 px-4 text-lg">
@@ -153,7 +149,6 @@
         </div>
     </div>
 
-    <!-- 自訂訊息對話框 (取代 alert) -->
     <div id="custom-modal" class="hidden absolute inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
         <div class="pixel-panel p-6 w-full max-w-sm text-center">
             <p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
@@ -161,13 +156,11 @@
         </div>
     </div>
 
-    <!-- 常駐 UI 元件 -->
     <div id="status-toast" class="absolute top-4 right-4 z-[2000] pixel-panel p-2 text-sm font-bold text-gray-900 hidden flex items-center gap-2">
         <div class="w-3 h-3 bg-green-500 border-2 border-black" id="sync-ping"></div>
         <span id="toast-text">連線中...</span>
     </div>
 
-    <!-- 系統公告/澄清訊息 (右上角) -->
     <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md">
         <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm">📢 飼主澄清公告</div>
         <div class="leading-relaxed mt-2">
@@ -177,7 +170,6 @@
         </div>
     </div>
 
-    <!-- 觀看模式按鈕 (左下) -->
     <button id="spectator-btn" class="absolute bottom-24 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
         觀看模式
     </button>
@@ -189,16 +181,13 @@
         </svg>
     </button>
 
-    <!-- 版權宣告 (右下角) -->
     <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">
         版權所有，桃園八德阿偉製作<br>
         <a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a>
     </div>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.13.0/firebase-auth.js";
@@ -243,7 +232,6 @@
         const customModalText = document.getElementById('custom-modal-text');
         const customModalBtn = document.getElementById('custom-modal-btn');
 
-        // --- 防 XSS 攻擊的字元轉義函式 ---
         function escapeHTML(str) {
             if (!str) return '';
             return String(str)
@@ -254,7 +242,6 @@
                 .replace(/'/g, '&#39;');
         }
 
-        // --- 自訂 Modal 邏輯取代 alert ---
         function showModal(msg) {
             customModalText.innerText = msg;
             customModal.classList.remove('hidden');
@@ -271,14 +258,12 @@
 
         // --- 1. 初始化系統 ---
         async function initSystem() {
-            // 初始化時直接定位在走失中心點
             map = L.map('map', { zoomControl: false }).setView(LOST_DOG_CENTER, 15);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             
             markersLayer = L.layerGroup().addTo(map);
 
-            // --- 標記走失中心點 ---
             const centerIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `
@@ -301,11 +286,8 @@
 
             initFogSystem();
 
-            map.on('locationfound', onLocationFound);
-            map.on('locationerror', onLocationError);
             setInterval(renderMap, 15000); 
 
-            // 更新為新的 Firebase 設定檔
             let firebaseConfig = {
                 apiKey: "AIzaSyALjGCMJ3X45SHzrR3NeDuX4HIX7ydMfTM",
                 authDomain: "finddog-7fe83.firebaseapp.com",
@@ -327,7 +309,6 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                // 初始化 Analytics
                 if (firebaseConfig.measurementId) {
                     analytics = getAnalytics(app);
                 }
@@ -410,7 +391,6 @@
             tempCanvas.width = w;
             tempCanvas.height = h;
 
-            // 填滿基礎迷霧 (極黑)
             lowResCtx.fillStyle = 'rgba(15, 20, 25, 0.9)'; 
             lowResCtx.fillRect(0, 0, w, h);
             
@@ -425,7 +405,6 @@
             const ONE_HOUR = 60 * 60 * 1000;
 
             if (radiusPx >= 1) {
-                // 繪製舊迷霧
                 tempCtx.clearRect(0, 0, w, h);
                 tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
@@ -450,7 +429,6 @@
                 lowResCtx.globalAlpha = 0.4; 
                 lowResCtx.drawImage(tempCanvas, 0, 0);
 
-                // 繪製新迷霧
                 tempCtx.clearRect(0, 0, w, h);
                 tempCtx.fillStyle = 'black';
                 Object.keys(allUsersData).forEach(uid => {
@@ -540,7 +518,6 @@
             masterStartBtn.innerText = "連線中...";
 
             let name = nameInput.value.trim();
-            // 【前端防護】直接在發送前，把 < 和 > 替換成全形字元或刪除，避免觸發資料庫阻擋
             name = name.replace(/[<>]/g, ''); 
             
             if (!name) name = `P${Math.floor(100 + Math.random() * 900)}`;
@@ -558,26 +535,19 @@
             isSpectatorMode = !isSpectatorMode;
             
             if (isSpectatorMode) {
-                // 進入觀看模式
                 spectatorBtn.innerText = "退出觀看";
                 spectatorBtn.style.backgroundColor = "#ef4444"; 
                 spectatorBtn.style.color = "white";
                 
-                // 徹底停止自身定位與 Leaflet 監聽
                 if (watchId) {
                     navigator.geolocation.clearWatch(watchId);
                     watchId = null;
                 }
-                map.stopLocate(); 
                 
-                // 飛往走失中心區域
                 map.setView(LOST_DOG_CENTER, 13, { animate: true });
-                
-                // 強制重繪地圖
                 renderMap();
                 toastText.innerText = "觀看模式啟動";
             } else {
-                // 退出觀看模式
                 spectatorBtn.innerText = "觀看模式";
                 spectatorBtn.style.backgroundColor = "#f59e0b"; 
                 spectatorBtn.style.color = "#1a202c";
@@ -594,6 +564,7 @@
                 return;
             }
 
+            // 【修復2】：獲取初始位置 (保證第一次一定抓得到)
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     if (isSpectatorMode) return; 
@@ -612,14 +583,13 @@
                 },
                 (error) => { 
                     console.warn("Watch Geo Error:", error);
-                    // 【修復跳窗】：不在持續監聽中觸發錯誤視窗，僅更新狀態燈號
                     document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
                     toastText.innerText = "定位訊號較弱...";
                 },
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
             );
 
-            map.locate({ setView: false, watch: true, enableHighAccuracy: true });
+            // 【修復2】移除了 Leaflet 原生的 map.locate，避免跟瀏覽器原生定位互相搶奪觸發順序
         }
 
         function finishUIReveal() {
@@ -631,13 +601,6 @@
             toastText.innerText = "位置同步成功";
         }
 
-        function onLocationFound(e) {
-            handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
-        }
-        function onLocationError(e) {
-            // Leaflet 的持續定位錯誤，同樣不報錯，以免干擾用戶
-        }
-
         function handleValidPosition(lat, lng, timestamp) {
             if (isSpectatorMode) return; 
 
@@ -645,10 +608,22 @@
                 map.setView([lat, lng], 17); 
             }
 
+            // 【修復1：心跳機制】判斷是否需要強制上傳
+            let shouldUpload = false;
+
             if (lastSavedPos) {
                 const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                // 距離小於 100 公尺則不上傳新點，以節省流量
-                if (dist < 100) return; 
+                const timeElapsed = timestamp - lastSavedPos.timestamp;
+                
+                if (dist >= 100) {
+                    shouldUpload = true; // 移動超過 100 公尺，正常上傳
+                } else if (timeElapsed >= 3 * 60 * 1000) {
+                    shouldUpload = true; // 即使沒移動，每 3 分鐘也強制「打卡」上傳一次，避免因為停留在原地太久而從地圖消失
+                } else {
+                    return; // 距離沒到且時間沒到，忽略此座標節省效能
+                }
+            } else {
+                shouldUpload = true; // 第一次啟動，必須上傳
             }
 
             const newPoint = { lat, lng, timestamp };
@@ -668,15 +643,15 @@
             };
             renderMap(); 
 
-            if (isSystemReady) saveLocationToFirestore();
+            if (isSystemReady && shouldUpload) {
+                saveLocationToFirestore();
+            }
         }
 
         async function saveLocationToFirestore() {
             if (!isSystemReady || !currentUser || localHistory.length === 0 || isSpectatorMode) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
             try {
-                // 【優化節省頻寬】：本地雖然保留 800 筆，但只上傳最後 50 筆給其他玩家看
-                // 這樣可以大幅減少每次移動時，全體監聽者需要下載的陣列大小。
                 const optimizedHistory = localHistory.slice(-50);
 
                 await setDoc(docRef, {
@@ -734,7 +709,6 @@
                 const age = Math.max(0, now - lastPoint.timestamp);
 
                 if (age < ONE_HOUR) { 
-                    // 【防 XSS 處理】將遠端讀取的名稱與顏色轉義，確保安全
                     const safeUserName = escapeHTML(userData.userName);
                     const safeRenderColor = escapeHTML(isSelf ? '#ef4444' : (userData.color || '#3b82f6'));
 
@@ -815,13 +789,12 @@
         }
 
         function showError(msg, isCopyable = false) {
-            // 在歡迎畫面上顯示錯誤文字
             errorMsg.innerText = msg.replace(/\n/g, ' ');
             errorMsg.classList.remove('hidden');
             
             if (isCopyable) {
                 errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed whitespace-pre-wrap";
-                errorMsg.innerText = msg; // 保留換行
+                errorMsg.innerText = msg; 
                 errorMsg.onclick = () => {
                     const textArea = document.createElement("textarea");
                     textArea.value = window.location.href;
@@ -829,7 +802,6 @@
                     textArea.select();
                     try {
                         document.execCommand('copy');
-                        // 【修復】：改用 showModal 取代 alert
                         showModal("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
                     } catch (err) {
                         showModal("複製失敗，請手動複製上方網址。");
@@ -841,7 +813,6 @@
                 errorMsg.onclick = null;
             }
             
-            // 【修復】：隱藏啟動畫面時的錯誤通知改用 custom modal
             if (startupOverlay.style.display === 'none') {
                 showModal(msg.replace(/<[^>]+>/g, ''));
             }
