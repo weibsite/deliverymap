@@ -131,7 +131,7 @@
                 START [授權定位]
             </button>
             
-            <p id="error-msg" class="text-red-600 font-bold text-sm mt-4 hidden"></p>
+            <div id="error-msg" class="hidden"></div>
         </div>
     </div>
 
@@ -147,6 +147,12 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
         </svg>
     </button>
+
+    <!-- 版權宣告 (右下角) -->
+    <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">
+        版權所有，桃園八德阿偉製作<br>
+        <a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a>
+    </div>
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -174,6 +180,7 @@
         // 迷霧系統變數
         let fogCanvas, fogCtx;
         let lowResCanvas, lowResCtx;
+        let tempCanvas, tempCtx; // 用於處理舊痕跡的暫存畫布
         let fogRenderPending = false;
         const FOG_SCALE = 0.08;
 
@@ -193,7 +200,6 @@
 
         // --- 1. 初始化系統 ---
         async function initSystem() {
-            // 初始化 Leaflet
             map = L.map('map', { zoomControl: false }).setView([23.6978, 120.9605], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -210,9 +216,6 @@
             map.on('locationerror', onLocationError);
             setInterval(renderMap, 15000); 
 
-            // ==========================================
-            // 👇 你的專屬 Firebase Config 
-            // ==========================================
             let firebaseConfig = {
                 apiKey: "AIzaSyCY_WA9GnVHKLQnLyaJaRh5SpQa8P3ceOo",
                 authDomain: "finddog-e89c3.firebaseapp.com",
@@ -222,9 +225,7 @@
                 appId: "1:409601620505:web:e7a30042d923547c514888",
                 measurementId: "G-WHVQCY3P4H"
             };
-            // ==========================================
 
-            // 安全初始化 Firebase (允許在 AI 預覽環境中自動載入設定)
             try {
                 if (typeof __firebase_config !== 'undefined' && __firebase_config) {
                     firebaseConfig = JSON.parse(__firebase_config);
@@ -236,7 +237,6 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                // [修復重點1]: 強制固定房間 ID，避免匯出網頁與預覽網頁進入不同的資料庫集合
                 appId = 'my-global-dog-map-room';
 
                 try {
@@ -256,9 +256,8 @@
                     }
                 });
             } else {
-                console.warn("未偵測到 Firebase 連線，進入單機測試模式");
                 isOfflineMode = true;
-                document.getElementById('sync-ping').style.backgroundColor = '#f59e0b'; // 橘燈表示單機
+                document.getElementById('sync-ping').style.backgroundColor = '#f59e0b';
                 checkLocalSetupAndStart();
             }
         }
@@ -271,6 +270,9 @@
             
             lowResCanvas = document.createElement('canvas');
             lowResCtx = lowResCanvas.getContext('2d');
+
+            tempCanvas = document.createElement('canvas');
+            tempCtx = tempCanvas.getContext('2d');
 
             function resizeAndPositionCanvas() {
                 fogCanvas.width = window.innerWidth;
@@ -304,7 +306,10 @@
             const h = Math.ceil(fogCanvas.height * FOG_SCALE);
             lowResCanvas.width = w;
             lowResCanvas.height = h;
+            tempCanvas.width = w;
+            tempCanvas.height = h;
 
+            // 填滿基礎迷霧 (極黑)
             lowResCtx.fillStyle = 'rgba(15, 20, 25, 0.9)'; 
             lowResCtx.fillRect(0, 0, w, h);
             
@@ -312,28 +317,61 @@
             const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
             
             // 👇👇👇 [手動修改區] 👇👇👇
-            // 修改下方的數字可以調整迷霧驅散的半徑大小 (單位：公尺)
-            // 原本為 500，目前縮小一半為 150
-            const exploreRadius = 150; 
+            const exploreRadius = 250; 
             const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
             // 👆👆👆 [手動修改區] 👆👆👆
 
             if (radiusPx >= 1) {
-                lowResCtx.globalCompositeOperation = 'destination-out';
+                const now = Date.now();
+                const ONE_HOUR = 60 * 60 * 1000;
+
+                // --- 繪製「大於 1 小時前」的舊迷霧 (半透明淡色痕跡) ---
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.fillStyle = 'black';
                 Object.values(allUsersData).forEach(userData => {
                     if (!userData.history) return;
                     userData.history.forEach(point => {
-                        const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-                        const sx = pt.x * FOG_SCALE;
-                        const sy = pt.y * FOG_SCALE;
-                        
-                        if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
-                            lowResCtx.beginPath();
-                            lowResCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
-                            lowResCtx.fill();
+                        if (now - point.timestamp >= ONE_HOUR) {
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+                            const sx = pt.x * FOG_SCALE;
+                            const sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
+                                tempCtx.beginPath();
+                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
+                                tempCtx.fill();
+                            }
                         }
                     });
                 });
+                
+                // 將舊痕跡以 40% 的透明度挖空 (留下淡色的迷霧)
+                lowResCtx.globalCompositeOperation = 'destination-out';
+                lowResCtx.globalAlpha = 0.4; 
+                lowResCtx.drawImage(tempCanvas, 0, 0);
+
+                // --- 繪製「1 小時內」的新迷霧 (完全透明驅散) ---
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.fillStyle = 'black';
+                Object.values(allUsersData).forEach(userData => {
+                    if (!userData.history) return;
+                    userData.history.forEach(point => {
+                        if (now - point.timestamp < ONE_HOUR) {
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+                            const sx = pt.x * FOG_SCALE;
+                            const sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
+                                tempCtx.beginPath();
+                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
+                                tempCtx.fill();
+                            }
+                        }
+                    });
+                });
+                
+                // 將新痕跡以 100% 透明度完全挖空
+                lowResCtx.globalAlpha = 1.0; 
+                lowResCtx.drawImage(tempCanvas, 0, 0);
+                
                 lowResCtx.globalCompositeOperation = 'source-over';
             }
 
@@ -383,7 +421,7 @@
         // --- 3. 定位核心服務 ---
         function startLocationServices(isAutoStart) {
             if (!navigator.geolocation) {
-                showError("瀏覽器不支援定位");
+                handleGeoError({code: 0, message: "瀏覽器不支援"}, isAutoStart);
                 return;
             }
 
@@ -435,9 +473,10 @@
             localHistory.push(newPoint);
             lastSavedPos = newPoint;
 
-            const oneHourAgo = timestamp - 60 * 60 * 1000;
-            localHistory = localHistory.filter(p => p.timestamp > oneHourAgo);
-            if (localHistory.length > 200) localHistory = localHistory.slice(-200);
+            // 為了讓迷霧有長期的記憶痕跡，這裡改為保留過去 12 小時 (且最多 800 個點)
+            const twelveHoursAgo = timestamp - 12 * 60 * 60 * 1000;
+            localHistory = localHistory.filter(p => p.timestamp > twelveHoursAgo);
+            if (localHistory.length > 800) localHistory = localHistory.slice(-800);
 
             const myUid = currentUser ? currentUser.uid : 'local_user';
             allUsersData[myUid] = {
@@ -482,8 +521,7 @@
                 renderMap();
             }, (error) => {
                 console.error("即時資料監聽失敗:", error);
-                // [修復重點2]: 如果 Firestore 權限沒開好，直接顯示錯誤讓你知道
-                showError("無法讀取其他玩家資料。請確保 Firebase Firestore 規則已設定為測試模式！");
+                showError("無法讀取其他玩家資料。請確保 Firebase Firestore 規則已設定為測試模式！", false);
             });
         }
 
@@ -495,7 +533,7 @@
             const maxFadeTime = 30 * 60 * 1000; 
             
             const myUid = currentUser ? currentUser.uid : 'local_user';
-            let onlineUserCount = 0; // 計算線上人數
+            let onlineUserCount = 0; 
 
             Object.keys(allUsersData).forEach(uid => {
                 const userData = allUsersData[uid];
@@ -511,6 +549,7 @@
                     const age = Math.max(0, now - point.timestamp);
                     let opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
 
+                    // 地圖上的實體軌跡點，依然只顯示 1 小時內的 (避免畫面太亂)
                     if (age < 60 * 60 * 1000) { 
                         const isLatest = index === history.length - 1;
 
@@ -551,7 +590,6 @@
                 });
             });
 
-            // [修復重點3]: 更新右上角 UI，告訴你目前抓到幾個人
             if (toastText.innerText.includes("同步成功") || toastText.innerText.includes("線上")) {
                 toastText.innerText = `線上: ${onlineUserCount} 人`;
             }
@@ -584,19 +622,50 @@
                 statusToast.classList.add('hidden');
                 locateBtn.classList.add('hidden');
             }
+            
             let msg = "無定位權限。請至手機設定中確認。";
-            if (error.code === 2) msg = "無法獲取位置，請確認 GPS 已開啟。";
-            if (error.code === 3) msg = "獲取位置逾時，請檢查網路。";
-            showError(msg);
+            let isCopyable = false;
+
+            // 錯誤碼 1 代表 PERMISSION_DENIED (通常是內建瀏覽器阻擋或使用者拒絕)
+            if (error.code === 1) { 
+                msg = "⚠️ 缺少定位權限！<br><br>若您使用 LINE 或 FB 直接開啟，將無法使用地圖。<br><br>👉 <span style='text-decoration:underline;'>點此複製網址</span> 👈<br>請改用 Safari 或 Chrome 貼上開啟。";
+                isCopyable = true;
+            } else if (error.code === 2) {
+                msg = "無法獲取位置，請確認 GPS 已開啟。";
+            } else if (error.code === 3) {
+                msg = "獲取位置逾時，請檢查網路。";
+            }
+            showError(msg, isCopyable);
         }
 
-        function showError(msg) {
-            errorMsg.innerText = msg;
+        function showError(msg, isCopyable = false) {
+            errorMsg.innerHTML = msg;
             errorMsg.classList.remove('hidden');
             
-            // 如果是在啟動畫面之後報錯，可以將錯誤彈出顯示
+            if (isCopyable) {
+                // 給予一個很像按鈕的樣式
+                errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed";
+                errorMsg.onclick = () => {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = window.location.href;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        alert("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
+                    } catch (err) {
+                        alert("複製失敗，請手動複製上方網址。");
+                    }
+                    document.body.removeChild(textArea);
+                };
+            } else {
+                errorMsg.className = "text-red-600 font-bold text-sm mt-4 block";
+                errorMsg.onclick = null;
+            }
+            
             if (startupOverlay.style.display === 'none') {
-                alert(msg);
+                // 若已在主畫面中報錯，可用系統 alert 再次提醒
+                alert(msg.replace(/<br>/g, '\n').replace(/<[^>]+>/g, ''));
             }
         }
 
