@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>尋狗地圖 - 像素探索版</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #2d3748;
+            font-family: 'Courier New', Courier, monospace;
+        }
+        #map-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background-color: #1a202c;
+        }
+        
+        .leaflet-tile {
+            filter: contrast(1.3) saturate(1.2) sepia(0.2);
+            image-rendering: pixelated; 
+        }
+
+        /* --- 像素復古 UI 元件 --- */
+        .pixel-panel {
+            background-color: white;
+            border: 4px solid #1a202c;
+            box-shadow: 6px 6px 0px #1a202c;
+            border-radius: 0px !important;
+        }
+        
+        .pixel-btn {
+            background-color: #f59e0b;
+            color: #1a202c;
+            border: 4px solid #1a202c;
+            box-shadow: 6px 6px 0px #1a202c;
+            border-radius: 0px !important;
+            transition: all 0.1s;
+            text-transform: uppercase;
+            font-weight: 900;
+            cursor: pointer;
+        }
+        .pixel-btn:active {
+            transform: translate(4px, 4px);
+            box-shadow: 2px 2px 0px #1a202c;
+        }
+        
+        .pixel-input {
+            border: 4px solid #1a202c;
+            border-radius: 0px !important;
+            outline: none;
+            font-weight: bold;
+        }
+        .pixel-input:focus {
+            background-color: #fef3c7;
+        }
+
+        .custom-div-icon {
+            background: transparent !important;
+            border: none !important;
+            overflow: visible !important; 
+        }
+        
+        .user-label-container {
+            position: absolute;
+            bottom: 4px;
+            left: -60px;
+            width: 120px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        
+        .user-avatar-pixel {
+            width: 16px;
+            height: 16px;
+            border: 3px solid #1a202c;
+            box-sizing: border-box;
+        }
+        
+        .user-name-tag {
+            background: white;
+            padding: 2px 6px;
+            border: 2px solid #1a202c;
+            font-size: 12px;
+            font-weight: 900;
+            white-space: nowrap;
+            margin-bottom: 6px;
+        }
+
+        /* 修正閃爍動畫，避免完全透明變成隱形 */
+        .blinking-red-pixel {
+            animation: blink-pixel 1s infinite alternate;
+        }
+
+        @keyframes blink-pixel {
+            0% { background-color: #ef4444; transform: scale(1); }
+            100% { background-color: #fca5a5; transform: scale(1.3); }
+        }
+
+        /* 走失中心點擴散波紋動畫 */
+        @keyframes pulse-square {
+            0% { transform: scale(0.5); opacity: 1; border-width: 4px; }
+            100% { transform: scale(4); opacity: 0; border-width: 1px; }
+        }
+        .center-pulse-square {
+            position: absolute;
+            left: -16px;
+            top: -16px;
+            width: 32px;
+            height: 32px;
+            border: 4px solid #ef4444;
+            box-sizing: border-box;
+            animation: pulse-square 2s infinite linear;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <!-- 啟動遮罩層 -->
+    <div id="startup-overlay" class="absolute inset-0 z-[3000] bg-black/70 flex items-center justify-center transition-opacity duration-300">
+        <div class="pixel-panel p-6 w-11/12 max-w-md text-center transform transition-transform">
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">尋狗地圖</h2>
+            <p class="text-gray-700 mb-4 text-sm font-bold">▶ 像素迷霧探索版 ◀<br><br>請輸入稱呼並允許定位，您的移動將以像素方塊驅散周圍迷霧！</p>
+            
+            <input type="text" id="user-name-input" placeholder="代號 (留空則隨機)" class="pixel-input w-full p-3 text-lg mb-4 text-center text-gray-900" />
+            
+            <button id="master-start-btn" class="pixel-btn w-full py-4 px-4 text-lg">
+                START [授權定位]
+            </button>
+            
+            <div id="error-msg" class="hidden"></div>
+        </div>
+    </div>
+
+    <!-- 自訂訊息對話框 (取代 alert) -->
+    <div id="custom-modal" class="hidden absolute inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
+            <button id="custom-modal-btn" class="pixel-btn w-full py-2">確定</button>
+        </div>
+    </div>
+
+    <!-- 常駐 UI 元件 -->
+    <div id="status-toast" class="absolute top-4 right-4 z-[2000] pixel-panel p-2 text-sm font-bold text-gray-900 hidden flex items-center gap-2">
+        <div class="w-3 h-3 bg-green-500 border-2 border-black" id="sync-ping"></div>
+        <span id="toast-text">連線中...</span>
+    </div>
+
+    <!-- 系統公告/澄清訊息 (右上角) -->
+    <div id="announcement-panel" class="absolute top-16 right-4 z-[2000] pixel-panel p-3 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/95 w-48 sm:w-56 pointer-events-auto shadow-md">
+        <div class="text-red-600 mb-1 border-b-2 border-black pb-1 text-xs sm:text-sm">📢 飼主澄清公告</div>
+        <div class="leading-relaxed mt-2">
+            之前有其他的狗遺失<br>
+            小鳳是我姑姑的狗 我是幫找<br>
+            嘎嘎是我大學收養 寄養在同學家被弄丟
+        </div>
+    </div>
+
+    <!-- 觀看模式按鈕 (左下) -->
+    <button id="spectator-btn" class="absolute bottom-24 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
+        觀看模式
+    </button>
+
+    <button id="locate-btn" class="absolute bottom-8 left-4 z-[2000] pixel-btn p-3 hidden flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
+            <circle cx="12" cy="12" r="3" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 2v2m0 16v2m10-10h-2M4 12H2" />
+        </svg>
+    </button>
+
+    <!-- 版權宣告 (右下角) -->
+    <div class="absolute bottom-24 right-4 sm:bottom-20 sm:right-4 z-[2000] pixel-panel p-2 text-[10px] sm:text-xs font-bold text-gray-900 bg-white/90 text-right pointer-events-auto">
+        版權所有，桃園八德阿偉製作<br>
+        <a href="mailto:mi000731@gmail.com" class="text-blue-700 hover:text-blue-900 hover:underline">mi000731@gmail.com</a>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- App Logic -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- 狀態變數 ---
+        let map, markersLayer;
+        let auth, db, appId, currentUser;
+        
+        let currentUserName = "";
+        let dbUserColor = ""; 
+        let localHistory = []; 
+        let lastSavedPos = null;
+        let allUsersData = {};
+        
+        let watchId = null;
+        let isSystemReady = false;
+        let isOfflineMode = false;
+        let isSpectatorMode = false; 
+
+        // 迷霧系統變數
+        let fogCanvas, fogCtx;
+        let lowResCanvas, lowResCtx;
+        let tempCanvas, tempCtx;
+        let fogRenderPending = false;
+        const FOG_SCALE = 0.08;
+        
+        // 走失中心點座標
+        const LOST_DOG_CENTER = [23.7509678, 120.3995609];
+
+        // --- DOM 元素 ---
+        const startupOverlay = document.getElementById('startup-overlay');
+        const nameInput = document.getElementById('user-name-input');
+        const masterStartBtn = document.getElementById('master-start-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const statusToast = document.getElementById('status-toast');
+        const toastText = document.getElementById('toast-text');
+        const locateBtn = document.getElementById('locate-btn');
+        const spectatorBtn = document.getElementById('spectator-btn');
+        const customModal = document.getElementById('custom-modal');
+        const customModalText = document.getElementById('custom-modal-text');
+        const customModalBtn = document.getElementById('custom-modal-btn');
+
+        // --- 自訂 Modal 邏輯取代 alert ---
+        function showModal(msg) {
+            customModalText.innerText = msg;
+            customModal.classList.remove('hidden');
+        }
+
+        customModalBtn.addEventListener('click', () => {
+            customModal.classList.add('hidden');
+        });
+
+        function generateRandomColor() {
+            const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
+            return colors[Math.floor(Math.random() * colors.length)];
+        }
+
+        // --- 1. 初始化系統 ---
+        async function initSystem() {
+            // 初始化時直接定位在走失中心點
+            map = L.map('map', { zoomControl: false }).setView(LOST_DOG_CENTER, 15);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+            
+            markersLayer = L.layerGroup().addTo(map);
+
+            // --- 標記走失中心點 ---
+            const centerIcon = L.divIcon({
+                className: 'custom-div-icon',
+                html: `
+                    <div style="position: absolute;">
+                        <div class="center-pulse-square"></div>
+                    </div>
+                    <div class="user-label-container" style="bottom: 12px;">
+                        <div class="user-name-tag pixel-panel" style="color: white; background-color: #ef4444; border-color: #1a202c; z-index: 10;">📍 走失中心</div>
+                        <div style="font-size: 24px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐕</div>
+                    </div>
+                `,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0]
+            });
+            L.marker(LOST_DOG_CENTER, { icon: centerIcon, zIndexOffset: 100 }).addTo(map);
+            
+            map.createPane('fogPane');
+            map.getPane('fogPane').style.zIndex = 450; 
+            map.getPane('fogPane').style.pointerEvents = 'none';
+
+            initFogSystem();
+
+            map.on('locationfound', onLocationFound);
+            map.on('locationerror', onLocationError);
+            setInterval(renderMap, 15000); 
+
+            let firebaseConfig = {
+                apiKey: "AIzaSyCY_WA9GnVHKLQnLyaJaRh5SpQa8P3ceOo",
+                authDomain: "finddog-e89c3.firebaseapp.com",
+                projectId: "finddog-e89c3",
+                storageBucket: "finddog-e89c3.firebasestorage.app",
+                messagingSenderId: "409601620505",
+                appId: "1:409601620505:web:e7a30042d923547c514888",
+                measurementId: "G-WHVQCY3P4H"
+            };
+
+            try {
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    firebaseConfig = JSON.parse(__firebase_config);
+                }
+            } catch(e) { console.warn("Firebase config parsing error"); }
+
+            if (firebaseConfig && Object.keys(firebaseConfig).length > 0) {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'my-global-dog-map-room';
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) {
+                        console.error("Auth Error", e);
+                    }
+                };
+                
+                await initAuth();
+
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        currentUser = user;
+                        isSystemReady = true;
+                        listenToAllLocations();
+                        checkLocalSetupAndStart();
+                    }
+                });
+            } else {
+                isOfflineMode = true;
+                document.getElementById('sync-ping').style.backgroundColor = '#f59e0b';
+                checkLocalSetupAndStart();
+            }
+        }
+
+        // --- 8-bit 像素迷霧系統 ---
+        function initFogSystem() {
+            fogCanvas = document.createElement('canvas');
+            map.getPane('fogPane').appendChild(fogCanvas);
+            fogCtx = fogCanvas.getContext('2d');
+            
+            lowResCanvas = document.createElement('canvas');
+            lowResCtx = lowResCanvas.getContext('2d');
+
+            tempCanvas = document.createElement('canvas');
+            tempCtx = tempCanvas.getContext('2d');
+
+            function resizeAndPositionCanvas() {
+                fogCanvas.width = window.innerWidth;
+                fogCanvas.height = window.innerHeight;
+                const topLeft = map.containerPointToLayerPoint([0, 0]);
+                L.DomUtil.setPosition(fogCanvas, topLeft);
+                requestFogRender();
+            }
+
+            window.addEventListener('resize', resizeAndPositionCanvas);
+            map.on('move', resizeAndPositionCanvas);
+            map.on('zoom', resizeAndPositionCanvas);
+            
+            resizeAndPositionCanvas();
+        }
+
+        function requestFogRender() {
+            if (!fogRenderPending) {
+                fogRenderPending = true;
+                requestAnimationFrame(() => {
+                    renderFog();
+                    fogRenderPending = false;
+                });
+            }
+        }
+
+        function renderFog() {
+            if (!map || !fogCtx) return;
+            
+            const w = Math.ceil(fogCanvas.width * FOG_SCALE);
+            const h = Math.ceil(fogCanvas.height * FOG_SCALE);
+            lowResCanvas.width = w;
+            lowResCanvas.height = h;
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+
+            // 填滿基礎迷霧 (極黑)
+            lowResCtx.fillStyle = 'rgba(15, 20, 25, 0.9)'; 
+            lowResCtx.fillRect(0, 0, w, h);
+            
+            const center = map.getCenter();
+            const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
+            
+            const exploreRadius = 250; 
+            const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
+
+            const myUid = currentUser ? currentUser.uid : 'local_user';
+            const now = Date.now();
+            const ONE_HOUR = 60 * 60 * 1000;
+
+            if (radiusPx >= 1) {
+                // 繪製舊迷霧
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.fillStyle = 'black';
+                Object.keys(allUsersData).forEach(uid => {
+                    if (isSpectatorMode && uid === myUid) return;
+                    const userData = allUsersData[uid];
+                    if (!userData.history) return;
+                    userData.history.forEach(point => {
+                        if (now - point.timestamp >= ONE_HOUR) {
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+                            const sx = pt.x * FOG_SCALE;
+                            const sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
+                                tempCtx.beginPath();
+                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
+                                tempCtx.fill();
+                            }
+                        }
+                    });
+                });
+                
+                lowResCtx.globalCompositeOperation = 'destination-out';
+                lowResCtx.globalAlpha = 0.4; 
+                lowResCtx.drawImage(tempCanvas, 0, 0);
+
+                // 繪製新迷霧
+                tempCtx.clearRect(0, 0, w, h);
+                tempCtx.fillStyle = 'black';
+                Object.keys(allUsersData).forEach(uid => {
+                    if (isSpectatorMode && uid === myUid) return;
+                    const userData = allUsersData[uid];
+                    if (!userData.history) return;
+                    userData.history.forEach(point => {
+                        if (now - point.timestamp < ONE_HOUR) {
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+                            const sx = pt.x * FOG_SCALE;
+                            const sy = pt.y * FOG_SCALE;
+                            if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) {
+                                tempCtx.beginPath();
+                                tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2);
+                                tempCtx.fill();
+                            }
+                        }
+                    });
+                });
+                
+                lowResCtx.globalAlpha = 1.0; 
+                lowResCtx.drawImage(tempCanvas, 0, 0);
+                lowResCtx.globalCompositeOperation = 'source-over';
+            }
+
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            fogCtx.imageSmoothingEnabled = false; 
+            fogCtx.drawImage(lowResCanvas, 0, 0, w, h, 0, 0, fogCanvas.width, fogCanvas.height);
+
+            const maxFadeTime = 30 * 60 * 1000; 
+            
+            Object.keys(allUsersData).forEach(uid => {
+                if (isSpectatorMode && uid === myUid) return; 
+                
+                const userData = allUsersData[uid];
+                if (!userData.history || userData.history.length === 0) return;
+
+                const isSelf = (uid === myUid);
+                const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
+
+                userData.history.forEach((point, index) => {
+                    const age = Math.max(0, now - point.timestamp);
+                    if (age < ONE_HOUR) { 
+                        const isLatest = index === userData.history.length - 1;
+                        if (!isLatest) { 
+                            const opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+
+                            if (pt.x > -10 && pt.x < fogCanvas.width + 10 && pt.y > -10 && pt.y < fogCanvas.height + 10) {
+                                fogCtx.globalAlpha = opacity;
+                                fogCtx.fillStyle = renderColor;
+                                fogCtx.fillRect(pt.x - 4, pt.y - 4, 8, 8);
+                            }
+                        }
+                    }
+                });
+            });
+            fogCtx.globalAlpha = 1.0; 
+        }
+
+        // --- 2. 檢查本機儲存與啟動 ---
+        function checkLocalSetupAndStart() {
+            const savedName = localStorage.getItem('dogMap_userName');
+            const savedColor = localStorage.getItem('dogMap_userColor');
+
+            if (savedName) {
+                currentUserName = savedName;
+                dbUserColor = savedColor || generateRandomColor();
+                if (!savedColor) localStorage.setItem('dogMap_userColor', dbUserColor);
+
+                startupOverlay.style.display = 'none';
+                statusToast.classList.remove('hidden');
+                locateBtn.classList.remove('hidden');
+                spectatorBtn.classList.remove('hidden'); 
+                toastText.innerText = isOfflineMode ? "離線定位中..." : "自動定位...";
+
+                startLocationServices(true);
+            } else {
+                startupOverlay.style.display = 'flex';
+                startupOverlay.style.opacity = '1';
+            }
+        }
+
+        masterStartBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            errorMsg.classList.add('hidden');
+            masterStartBtn.innerText = "連線中...";
+
+            let name = nameInput.value.trim();
+            if (!name) name = `P${Math.floor(100 + Math.random() * 900)}`;
+            currentUserName = name;
+            dbUserColor = generateRandomColor();
+
+            localStorage.setItem('dogMap_userName', currentUserName);
+            localStorage.setItem('dogMap_userColor', dbUserColor);
+
+            startLocationServices(false);
+        });
+
+        // --- 觀看模式按鈕邏輯 ---
+        spectatorBtn.addEventListener('click', () => {
+            isSpectatorMode = !isSpectatorMode;
+            
+            if (isSpectatorMode) {
+                // 進入觀看模式
+                spectatorBtn.innerText = "退出觀看";
+                spectatorBtn.style.backgroundColor = "#ef4444"; 
+                spectatorBtn.style.color = "white";
+                
+                // 徹底停止自身定位與 Leaflet 監聽
+                if (watchId) {
+                    navigator.geolocation.clearWatch(watchId);
+                    watchId = null;
+                }
+                map.stopLocate(); 
+                
+                // 飛往走失中心區域
+                map.setView(LOST_DOG_CENTER, 13, { animate: true });
+                
+                // 強制重繪地圖
+                renderMap();
+                toastText.innerText = "觀看模式啟動";
+            } else {
+                // 退出觀看模式
+                spectatorBtn.innerText = "觀看模式";
+                spectatorBtn.style.backgroundColor = "#f59e0b"; 
+                spectatorBtn.style.color = "#1a202c";
+                
+                toastText.innerText = "重新定位中...";
+                startLocationServices(true);
+            }
+        });
+
+        // --- 3. 定位核心服務 ---
+        function startLocationServices(isAutoStart) {
+            if (!navigator.geolocation) {
+                handleGeoError({code: 0, message: "瀏覽器不支援"}, isAutoStart);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    if (isSpectatorMode) return; 
+                    handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
+                    finishUIReveal();
+                },
+                (error) => { handleGeoError(error, isAutoStart); },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    if (isSpectatorMode) return;
+                    handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
+                },
+                (error) => { 
+                    console.warn("Watch Geo Error:", error);
+                    // 【修復跳窗】：不在持續監聽中觸發錯誤視窗，僅更新狀態燈號
+                    document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
+                    toastText.innerText = "定位訊號較弱...";
+                },
+                { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
+            );
+
+            map.locate({ setView: false, watch: true, enableHighAccuracy: true });
+        }
+
+        function finishUIReveal() {
+            startupOverlay.style.opacity = '0';
+            setTimeout(() => { startupOverlay.style.display = 'none'; }, 300);
+            statusToast.classList.remove('hidden');
+            locateBtn.classList.remove('hidden');
+            spectatorBtn.classList.remove('hidden');
+            toastText.innerText = "位置同步成功";
+        }
+
+        function onLocationFound(e) {
+            handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
+        }
+        function onLocationError(e) {
+            // Leaflet 的持續定位錯誤，同樣不報錯，以免干擾用戶
+        }
+
+        function handleValidPosition(lat, lng, timestamp) {
+            if (isSpectatorMode) return; 
+
+            if (localHistory.length === 0) {
+                map.setView([lat, lng], 17); 
+            }
+
+            if (lastSavedPos) {
+                const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
+                // 距離小於 100 公尺則不上傳新點，以節省流量
+                if (dist < 100) return; 
+            }
+
+            const newPoint = { lat, lng, timestamp };
+            localHistory.push(newPoint);
+            lastSavedPos = newPoint;
+
+            const twelveHoursAgo = timestamp - 12 * 60 * 60 * 1000;
+            localHistory = localHistory.filter(p => p.timestamp > twelveHoursAgo);
+            if (localHistory.length > 800) localHistory = localHistory.slice(-800);
+
+            const myUid = currentUser ? currentUser.uid : 'local_user';
+            allUsersData[myUid] = {
+                userName: currentUserName || "我",
+                color: dbUserColor || "#ef4444",
+                history: [...localHistory],
+                lastUpdate: Date.now()
+            };
+            renderMap(); 
+
+            if (isSystemReady) saveLocationToFirestore();
+        }
+
+        async function saveLocationToFirestore() {
+            if (!isSystemReady || !currentUser || localHistory.length === 0 || isSpectatorMode) return;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
+            try {
+                // 【優化節省頻寬】：本地雖然保留 800 筆，但只上傳最後 50 筆給其他玩家看
+                // 這樣可以大幅減少每次移動時，全體監聽者需要下載的陣列大小。
+                const optimizedHistory = localHistory.slice(-50);
+
+                await setDoc(docRef, {
+                    userName: currentUserName,
+                    color: dbUserColor,
+                    history: optimizedHistory,
+                    lastUpdate: Date.now()
+                }, { merge: true });
+                
+                document.getElementById('sync-ping').style.backgroundColor = 'white';
+                setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
+                toastText.innerText = "位置同步成功";
+            } catch (e) {
+                console.error("Firestore Upload Error", e);
+            }
+        }
+
+        // --- 4. 監聽與標記渲染 ---
+        function listenToAllLocations() {
+            if (!currentUser) return;
+            const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
+            onSnapshot(collectionRef, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === "added" || change.type === "modified") {
+                        allUsersData[change.doc.id] = change.doc.data();
+                    }
+                    if (change.type === "removed") delete allUsersData[change.doc.id];
+                });
+                renderMap();
+            }, (error) => {
+                console.error("即時資料監聽失敗:", error);
+            });
+        }
+
+        function renderMap() {
+            if (!markersLayer) return;
+            markersLayer.clearLayers(); 
+            
+            const myUid = currentUser ? currentUser.uid : 'local_user';
+            let onlineUserCount = 0; 
+            const ONE_HOUR = 60 * 60 * 1000;
+            const now = Date.now();
+
+            Object.keys(allUsersData).forEach(uid => {
+                const userData = allUsersData[uid];
+                if (!userData.history || userData.history.length === 0) return;
+
+                const isSelf = (uid === myUid);
+                
+                if (isSpectatorMode && isSelf) return;
+
+                onlineUserCount++;
+
+                const lastPoint = userData.history[userData.history.length - 1];
+                const age = Math.max(0, now - lastPoint.timestamp);
+
+                if (age < ONE_HOUR) { 
+                    const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
+                    const avatarHtml = isSelf 
+                        ? `<div class="user-avatar-pixel blinking-red-pixel"></div>`
+                        : `<div class="user-avatar-pixel" style="background-color: ${renderColor};"></div>`;
+                    
+                    const nameColor = isSelf ? 'color: #ef4444;' : 'color: #1a202c;';
+
+                    const customIcon = L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `
+                            <div class="user-label-container">
+                                <div class="user-name-tag pixel-panel" style="${nameColor}">${userData.userName}</div>
+                                ${avatarHtml}
+                            </div>
+                        `,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    });
+                    
+                    L.marker([lastPoint.lat, lastPoint.lng], { 
+                        icon: customIcon, 
+                        zIndexOffset: isSelf ? 5000 : 1000 
+                    }).addTo(markersLayer);
+                }
+            });
+
+            if (toastText.innerText.includes("同步成功") || toastText.innerText.includes("線上") || toastText.innerText.includes("觀看")) {
+                toastText.innerText = isSpectatorMode ? `觀看中: ${onlineUserCount} 人` : `線上: ${onlineUserCount} 人`;
+            }
+            
+            requestFogRender();
+        }
+
+        // --- 工具 ---
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3; 
+            const p1 = lat1 * Math.PI/180;
+            const p2 = lat2 * Math.PI/180;
+            const dp = (lat2-lat1) * Math.PI/180;
+            const dl = (lon2-lon1) * Math.PI/180;
+            const a = Math.sin(dp/2) * Math.sin(dp/2) + Math.cos(p1) * Math.cos(p2) * Math.sin(dl/2) * Math.sin(dl/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        locateBtn.addEventListener('click', () => {
+            if (isSpectatorMode) return; 
+            if (lastSavedPos) {
+                map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true });
+            }
+        });
+
+        function handleGeoError(error, isAutoStart) {
+            if (isSpectatorMode) return; 
+
+            masterStartBtn.innerText = "START [重新授權]";
+            if (isAutoStart) {
+                startupOverlay.style.display = 'flex';
+                startupOverlay.style.opacity = '1';
+                statusToast.classList.add('hidden');
+                locateBtn.classList.add('hidden');
+                spectatorBtn.classList.add('hidden');
+            }
+            
+            let msg = "無定位權限。請至手機設定中確認。";
+            let isCopyable = false;
+
+            if (error.code === 1) { 
+                msg = "⚠️ 缺少定位權限！\n\n若您使用 LINE 或 FB 直接開啟，將無法使用地圖。\n\n👉 點此複製網址 👈\n請改用 Safari 或 Chrome 貼上開啟。";
+                isCopyable = true;
+            } else if (error.code === 2) {
+                msg = "無法獲取位置，請確認 GPS 已開啟。";
+            } else if (error.code === 3) {
+                msg = "獲取位置逾時，請檢查網路。";
+            }
+            showError(msg, isCopyable);
+        }
+
+        function showError(msg, isCopyable = false) {
+            // 在歡迎畫面上顯示錯誤文字
+            errorMsg.innerText = msg.replace(/\n/g, ' ');
+            errorMsg.classList.remove('hidden');
+            
+            if (isCopyable) {
+                errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed whitespace-pre-wrap";
+                errorMsg.innerText = msg; // 保留換行
+                errorMsg.onclick = () => {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = window.location.href;
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        // 【修復】：改用 showModal 取代 alert
+                        showModal("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
+                    } catch (err) {
+                        showModal("複製失敗，請手動複製上方網址。");
+                    }
+                    document.body.removeChild(textArea);
+                };
+            } else {
+                errorMsg.className = "text-red-600 font-bold text-sm mt-4 block whitespace-pre-wrap";
+                errorMsg.onclick = null;
+            }
+            
+            // 【修復】：隱藏啟動畫面時的錯誤通知改用 custom modal
+            if (startupOverlay.style.display === 'none') {
+                showModal(msg.replace(/<[^>]+>/g, ''));
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', initSystem);
+    </script>
+</body>
+</html>
