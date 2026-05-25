@@ -514,10 +514,10 @@
         });
 
         document.getElementById('admin-submit-btn').addEventListener('click', () => {
-            const pwd = document.getElementById('admin-pwd-input').value;
-            // 密碼被使用 XOR(165) 轉換成了無意義的數字陣列，無法從原始碼直接看出是 Bb870609
-            const targetHash = "231,199,157,154,149,147,149,156";
-            const inputHash = pwd.split('').map(c => c.charCodeAt(0) ^ 0xA5).join(',');
+            const pwd = document.getElementById('admin-pwd-input').value.trim();
+            // 使用 Base64 編碼並反轉字串的方式混淆密碼，避免從原始碼直接看出密碼
+            const targetHash = "=kDM2A0N4ImQ"; 
+            const inputHash = btoa(pwd).split('').reverse().join('');
 
             if (inputHash === targetHash) {
                 isAdmin = true;
