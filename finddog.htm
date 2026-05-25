@@ -177,6 +177,15 @@
         let fogCtx = fogCanvas.getContext('2d');
         let fogRenderPending = false;
 
+        // --- DOM 元素 ---
+        const startupOverlay = document.getElementById('startup-overlay');
+        const nameInput = document.getElementById('user-name-input');
+        const masterStartBtn = document.getElementById('master-start-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const statusToast = document.getElementById('status-toast');
+        const toastText = document.getElementById('toast-text');
+        const locateBtn = document.getElementById('locate-btn');
+
         function generateRandomColor() {
             const h = Math.floor(Math.random() * 360);
             return `hsl(${h}, 85%, 45%)`;
