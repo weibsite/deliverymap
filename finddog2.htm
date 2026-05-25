@@ -42,6 +42,7 @@
         </div>
     </div>
 
+    <!-- Modals -->
     <div id="custom-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p><button id="custom-modal-btn" class="pixel-btn w-full py-2 bg-blue-500 text-white">確定</button></div></div>
     <div id="input-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><h3 id="input-modal-title" class="text-gray-900 font-bold mb-4"></h3><textarea id="input-modal-text" class="pixel-input w-full p-2 mb-4 h-32" placeholder="請輸入內容..."></textarea><div class="flex gap-2"><button id="input-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="input-submit-btn" class="pixel-btn flex-1 py-2 bg-blue-500 text-white">確定</button></div></div></div>
     <div id="confirm-modal" class="hidden absolute inset-0 z-[8000] bg-black/80 flex items-center justify-center p-4"><div class="pixel-panel p-6 w-full max-w-sm text-center"><p id="confirm-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p><div class="flex gap-2"><button id="confirm-cancel-btn" class="pixel-btn flex-1 py-2 bg-gray-400">取消</button><button id="confirm-ok-btn" class="pixel-btn flex-1 py-2 bg-red-500 text-white">確定</button></div></div></div>
@@ -91,6 +92,7 @@
         let isAdmin = false;
         let isFogVisible = true;
         let navMarker = null;
+        let addSightingMarker = null; // 記錄新增出沒點的暫存標記
 
         // 迷霧系統變數
         let fogCanvas, fogCtx, lowResCanvas, lowResCtx, tempCanvas, tempCtx;
@@ -235,16 +237,100 @@
             } else { showModal("密碼錯誤，請重新確認。"); }
         });
 
+        // --- 管理員：新增事件點 (支援拖曳與貼上座標) ---
         addSightingBtn.addEventListener('click', () => {
             if(!isAdmin) return;
-            showInputModal("📍 新增疑似出沒點", "請詳細描述此事件點...", "", (desc) => {
-                showModal("📍 請在地圖上【點擊】發生該事件的精確位置！");
-                map.once('click', (e) => {
-                    if(isSystemReady) {
-                        ws.send(JSON.stringify({ type: "add_sighting", data: { lat: e.latlng.lat, lng: e.latlng.lng, description: desc, timestamp: Date.now() }}));
-                        showModal("✅ 成功新增事件點！");
+            
+            // 清理舊的暫存標記
+            if(addSightingMarker) {
+                map.removeLayer(addSightingMarker);
+                addSightingMarker = null;
+            }
+
+            // 取得中心點生成標記
+            const center = map.getCenter();
+            addSightingMarker = L.marker(center, {
+                draggable: true,
+                zIndexOffset: 10000,
+                icon: L.divIcon({ 
+                    className: 'custom-div-icon', 
+                    html: `<div style="font-size: 36px; filter: drop-shadow(2px 2px 0px #1a202c); margin-top: -36px; margin-left: -18px; cursor: grab; animation: blink-pixel 1s infinite alternate;">🐾</div>`, 
+                    iconSize: [0, 0], 
+                    iconAnchor: [0, 0] 
+                })
+            }).addTo(map);
+
+            const initialCoordStr = `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`;
+            
+            // 建立輸入表單 DOM
+            const container = L.DomUtil.create('div', 'text-center font-bold p-2 w-56');
+            container.innerHTML = `
+                <p class="mb-2 text-xs text-red-600 border-b-2 border-black pb-1">📍 拖曳標記或貼上座標</p>
+                <input type="text" id="sighting-coord-input" class="pixel-input w-full p-2 mb-2 text-xs text-center" value="${initialCoordStr}" placeholder="例如: 23.7524, 120.3947">
+                <textarea id="sighting-desc-input" class="pixel-input w-full p-2 mb-2 text-xs h-20" placeholder="請詳細描述此事件點..."></textarea>
+                <div class="flex gap-2">
+                    <button id="sighting-cancel-btn" class="pixel-btn flex-1 py-1 text-xs bg-gray-400">取消</button>
+                    <button id="sighting-submit-btn" class="pixel-btn flex-1 py-1 text-xs bg-green-500 text-white">發布</button>
+                </div>
+            `;
+            
+            const coordInput = container.querySelector('#sighting-coord-input');
+            const descInput = container.querySelector('#sighting-desc-input');
+            const cancelBtn = container.querySelector('#sighting-cancel-btn');
+            const submitBtn = container.querySelector('#sighting-submit-btn');
+
+            // 監聽輸入框變化 (支援使用者貼上 Google Maps 座標)
+            coordInput.addEventListener('change', (e) => {
+                const parts = e.target.value.split(/,|，/); // 支援半形或全形逗號
+                if(parts.length >= 2) {
+                    const lat = parseFloat(parts[0].trim());
+                    const lng = parseFloat(parts[1].trim());
+                    if(!isNaN(lat) && !isNaN(lng)) {
+                        const newLatLng = L.latLng(lat, lng);
+                        addSightingMarker.setLatLng(newLatLng);
+                        map.setView(newLatLng, 17, {animate: true});
                     }
-                });
+                }
+            });
+
+            // 取消按鈕
+            cancelBtn.addEventListener('click', () => {
+                map.removeLayer(addSightingMarker);
+                addSightingMarker = null;
+            });
+
+            // 發布按鈕
+            submitBtn.addEventListener('click', () => {
+                const desc = descInput.value.trim();
+                if(!desc) {
+                    showModal("描述內容不能為空白！");
+                    return;
+                }
+                const finalPos = addSightingMarker.getLatLng();
+                if(isSystemReady) {
+                    ws.send(JSON.stringify({ 
+                        type: "add_sighting", 
+                        data: { lat: finalPos.lat, lng: finalPos.lng, description: desc, timestamp: Date.now() }
+                    }));
+                    showModal("✅ 成功發布事件點！");
+                }
+                map.removeLayer(addSightingMarker);
+                addSightingMarker = null;
+            });
+
+            // 綁定 Popup (設定 closeOnClick: false 讓使用者在點擊地圖時不會誤關閉輸入框)
+            addSightingMarker.bindPopup(container, {
+                className: 'pixel-popup',
+                closeButton: false,
+                closeOnClick: false,
+                autoClose: false,
+                offset: [0, -40]
+            }).openPopup();
+
+            // 拖曳標記時即時更新座標文字框
+            addSightingMarker.on('dragend', () => {
+                const pos = addSightingMarker.getLatLng();
+                coordInput.value = `${pos.lat}, ${pos.lng}`;
             });
         });
 
