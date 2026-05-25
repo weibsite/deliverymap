@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>尋狗地圖 - 本機伺服器版</title>
+    <title>尋狗地圖 - 線上部署版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
@@ -64,9 +64,14 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
     <script>
+        // ==========================================
+        // ⚠️ 請將下方的網址替換成您的 Ngrok WSS 網址 ⚠️
+        // ==========================================
+        const NGROK_WS_URL = "wss://registrational-alfredo-curly.ngrok-free.dev";
+
         // --- 狀態變數 ---
         let map, markersLayer, sightingsLayer;
-        let ws; // WebSocket 實例
+        let ws; 
         let myUid = localStorage.getItem('dogMap_UID');
         if (!myUid) {
             myUid = 'usr_' + Math.random().toString(36).substr(2, 9);
@@ -93,7 +98,7 @@
         const FOG_SCALE = 0.08;
         const LOST_DOG_CENTER = [23.7509678, 120.3995609];
 
-        // --- DOM 元素 (同前) ---
+        // --- DOM 元素 ---
         const startupOverlay = document.getElementById('startup-overlay');
         const nameInput = document.getElementById('user-name-input');
         const masterStartBtn = document.getElementById('master-start-btn');
@@ -114,10 +119,7 @@
         const updateAnnounceBtn = document.getElementById('update-announce-btn');
 
         // --- 工具 ---
-        function escapeHTML(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&').replace(/</g, '<').replace(/>/g, '>').replace(/"/g, '"').replace(/'/g, ''');
-        }
+        function escapeHTML(str) { return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
         function showModal(msg) { customModalText.innerText = msg; customModal.classList.remove('hidden'); }
         customModalBtn.addEventListener('click', () => { customModal.classList.add('hidden'); });
 
@@ -129,8 +131,7 @@
             const submitBtn = document.getElementById('input-submit-btn');
             const cancelBtn = document.getElementById('input-cancel-btn');
             const newSubmit = submitBtn.cloneNode(true), newCancel = cancelBtn.cloneNode(true);
-            submitBtn.parentNode.replaceChild(newSubmit, submitBtn);
-            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            submitBtn.parentNode.replaceChild(newSubmit, submitBtn); cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
             newSubmit.addEventListener('click', () => {
                 const val = document.getElementById('input-modal-text').value.trim();
                 if(val) { document.getElementById('input-modal').classList.add('hidden'); onSubmit(val); } 
@@ -140,33 +141,25 @@
         }
 
         function showConfirm(msg, onConfirm) {
-            document.getElementById('confirm-modal-text').innerText = msg;
-            document.getElementById('confirm-modal').classList.remove('hidden');
-            const okBtn = document.getElementById('confirm-ok-btn');
-            const cancelBtn = document.getElementById('confirm-cancel-btn');
+            document.getElementById('confirm-modal-text').innerText = msg; document.getElementById('confirm-modal').classList.remove('hidden');
+            const okBtn = document.getElementById('confirm-ok-btn'), cancelBtn = document.getElementById('confirm-cancel-btn');
             const newOk = okBtn.cloneNode(true), newCancel = cancelBtn.cloneNode(true);
-            okBtn.parentNode.replaceChild(newOk, okBtn);
-            cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+            okBtn.parentNode.replaceChild(newOk, okBtn); cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
             newOk.addEventListener('click', () => { document.getElementById('confirm-modal').classList.add('hidden'); onConfirm(); });
             newCancel.addEventListener('click', () => { document.getElementById('confirm-modal').classList.add('hidden'); });
         }
 
-        function generateRandomColor() {
-            const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
-            return colors[Math.floor(Math.random() * colors.length)];
-        }
+        function generateRandomColor() { const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4']; return colors[Math.floor(Math.random() * colors.length)]; }
 
         // --- 1. WebSocket 與 初始化 ---
         function connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            ws = new WebSocket(wsUrl);
+            ws = new WebSocket(NGROK_WS_URL);
 
             ws.onopen = () => {
                 isSystemReady = true;
                 document.getElementById('sync-ping').style.backgroundColor = '#10b981';
                 toastText.innerText = "連線成功";
-                if(localHistory.length > 0) saveLocationToServer(); // 重新連線時補傳
+                if(localHistory.length > 0) saveLocationToServer(); 
             };
 
             ws.onmessage = (event) => {
@@ -184,7 +177,7 @@
                 isSystemReady = false;
                 document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
                 toastText.innerText = "斷線重連中...";
-                setTimeout(connectWebSocket, 3000); // 斷線自動重連
+                setTimeout(connectWebSocket, 3000); 
             };
         }
 
@@ -223,16 +216,12 @@
             initFogSystem();
             setInterval(renderMap, 15000);
 
-            // 啟動 WebSocket 連線
             connectWebSocket();
             checkLocalSetupAndStart();
         }
 
         // --- 管理員系統 ---
-        adminLoginTrigger.addEventListener('click', () => {
-            document.getElementById('admin-login-modal').classList.remove('hidden');
-            document.getElementById('admin-pwd-input').value = "";
-        });
+        adminLoginTrigger.addEventListener('click', () => { document.getElementById('admin-login-modal').classList.remove('hidden'); document.getElementById('admin-pwd-input').value = ""; });
         document.getElementById('admin-cancel-btn').addEventListener('click', () => { document.getElementById('admin-login-modal').classList.add('hidden'); });
         document.getElementById('admin-submit-btn').addEventListener('click', () => {
             const pwd = document.getElementById('admin-pwd-input').value.trim();
@@ -241,10 +230,8 @@
             if (inputHash === targetHash) {
                 isAdmin = true;
                 document.getElementById('admin-login-modal').classList.add('hidden');
-                adminLoginTrigger.classList.add('hidden');
-                adminPanel.classList.remove('hidden');
-                renderSightings(); 
-                showModal("登入成功！已啟用管理員模式。");
+                adminLoginTrigger.classList.add('hidden'); adminPanel.classList.remove('hidden');
+                renderSightings(); showModal("登入成功！已啟用管理員模式。");
             } else { showModal("密碼錯誤，請重新確認。"); }
         });
 
@@ -266,10 +253,7 @@
             let currentRawText = document.getElementById('announcement-text').innerHTML.replace(/<br\s*[\/]?>/gi, '\n').trim();
             if(currentRawText === "載入中...") currentRawText = "";
             showInputModal("📢 更新全域公告", "請輸入最新的公告內容...", currentRawText, (text) => {
-                if(isSystemReady) {
-                    ws.send(JSON.stringify({ type: "update_announcement", data: text }));
-                    showModal("✅ 公告更新指令已送出！");
-                }
+                if(isSystemReady) { ws.send(JSON.stringify({ type: "update_announcement", data: text })); showModal("✅ 公告更新指令已送出！"); }
             });
         });
 
@@ -277,21 +261,17 @@
             if (!sightingsLayer) return;
             sightingsLayer.clearLayers();
             Object.keys(allSightings).forEach(id => {
-                const data = allSightings[id];
-                const safeDesc = escapeHTML(data.description);
-                const d = new Date(data.timestamp);
-                const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=$${data.lat},${data.lng}`;
-
+                const data = allSightings[id]; const safeDesc = escapeHTML(data.description);
+                const d = new Date(data.timestamp); const dateStr = `${d.getMonth()+1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+                const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${data.lat},${data.lng}`;
                 const icon = L.divIcon({ className: 'custom-div-icon', html: `<div class="user-label-container" style="bottom: 12px;"><div class="user-name-tag pixel-panel" style="color: #1a202c; background-color: #fef08a; border-color: #1a202c; animation: blink-pixel 2s infinite alternate;">⚠️ 疑似出沒</div><div style="font-size: 28px; filter: drop-shadow(2px 2px 0px #1a202c); position: relative; z-index: 10;">🐾</div></div>`, iconSize: [0, 0], iconAnchor: [0, 0] });
                 const marker = L.marker([data.lat, data.lng], { icon, zIndexOffset: 3000 }).addTo(sightingsLayer);
-                
                 const adminDeleteHtml = isAdmin ? `<button data-id="${id}" class="admin-delete-btn mt-3 p-1 border-2 border-red-500 text-xs text-red-500 hover:bg-red-500 hover:text-white transition-colors w-full text-center cursor-pointer font-bold">🗑️ 管理員：刪除此紀錄</button>` : '';
                 marker.bindPopup(`<div class="p-2 w-48 font-bold text-gray-900"><div class="border-b-2 border-black pb-1 mb-2 text-sm text-blue-600">🕒 時間：${dateStr}</div><div class="text-sm mb-4 whitespace-pre-wrap leading-relaxed">${safeDesc}</div><a href="${gmapsUrl}" target="_blank" class="pixel-btn block text-center py-2 text-xs bg-blue-500 text-white shadow-[4px_4px_0px_#1a202c] no-underline">🚀 開啟 Google 導航</a>${adminDeleteHtml}</div>`, { className: 'pixel-popup', closeButton: true, offset: [0, -30] });
             });
         }
 
-        // --- 迷霧渲染 (同前) ---
+        // --- 迷霧渲染 ---
         function initFogSystem() {
             fogCanvas = document.createElement('canvas'); map.getPane('fogPane').appendChild(fogCanvas); fogCtx = fogCanvas.getContext('2d');
             lowResCanvas = document.createElement('canvas'); lowResCtx = lowResCanvas.getContext('2d');
@@ -317,8 +297,7 @@
                     const userData = allUsersData[uid]; if (!userData.history) return;
                     userData.history.forEach(point => {
                         if (now - point.timestamp >= ONE_HOUR) {
-                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-                            const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]); const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
                             if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) { tempCtx.beginPath(); tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2); tempCtx.fill(); }
                         }
                     });
@@ -330,8 +309,7 @@
                     const userData = allUsersData[uid]; if (!userData.history) return;
                     userData.history.forEach(point => {
                         if (now - point.timestamp < ONE_HOUR) {
-                            const pt = map.latLngToContainerPoint([point.lat, point.lng]);
-                            const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
+                            const pt = map.latLngToContainerPoint([point.lat, point.lng]); const sx = pt.x * FOG_SCALE, sy = pt.y * FOG_SCALE;
                             if (sx > -radiusPx && sx < w + radiusPx && sy > -radiusPx && sy < h + radiusPx) { tempCtx.beginPath(); tempCtx.arc(sx, sy, radiusPx, 0, Math.PI * 2); tempCtx.fill(); }
                         }
                     });
@@ -388,7 +366,7 @@
             if (navMarker) { map.removeLayer(navMarker); navMarker = null; navPinBtn.innerText = "📍 導航標記"; navPinBtn.style.backgroundColor = "#f59e0b"; navPinBtn.style.color = "#1a202c"; } 
             else {
                 navMarker = L.marker(map.getCenter(), { draggable: true, zIndexOffset: 10000, icon: L.divIcon({ className: 'custom-div-icon', html: `<div style="font-size: 36px; filter: drop-shadow(2px 2px 0px #1a202c); margin-top: -36px; margin-left: -18px; cursor: grab;">🎯</div>`, iconSize: [0, 0], iconAnchor: [0, 0] }) }).addTo(map);
-                const updatePopup = () => { const pos = navMarker.getLatLng(); navMarker.bindPopup(`<div class="text-center font-bold p-2"><p class="mb-2 text-xs text-gray-800 border-b-2 border-black pb-1">拖曳標靶調整位置</p><a href="https://www.google.com/maps/dir/?api=1&destination=$${pos.lat},${pos.lng}" target="_blank" class="pixel-btn px-4 py-2 mt-2 text-sm inline-block no-underline bg-blue-500 text-white border-black w-full shadow-[4px_4px_0px_#1a202c]">🚀 導航至此</a></div>`, { className: 'pixel-popup', closeButton: false, offset: [0, -40] }).openPopup(); };
+                const updatePopup = () => { const pos = navMarker.getLatLng(); navMarker.bindPopup(`<div class="text-center font-bold p-2"><p class="mb-2 text-xs text-gray-800 border-b-2 border-black pb-1">拖曳標靶調整位置</p><a href="https://www.google.com/maps/dir/?api=1&destination=${pos.lat},${pos.lng}" target="_blank" class="pixel-btn px-4 py-2 mt-2 text-sm inline-block no-underline bg-blue-500 text-white border-black w-full shadow-[4px_4px_0px_#1a202c]">🚀 導航至此</a></div>`, { className: 'pixel-popup', closeButton: false, offset: [0, -40] }).openPopup(); };
                 navMarker.on('dragend', updatePopup); updatePopup();
                 navPinBtn.innerText = "❌ 移除標記"; navPinBtn.style.backgroundColor = "#ef4444"; navPinBtn.style.color = "white";
             }
@@ -448,18 +426,13 @@
 
             const newPoint = { lat, lng, timestamp }; localHistory.push(newPoint); lastSavedPos = newPoint;
             localHistory = localHistory.filter(p => p.timestamp > timestamp - 12 * 60 * 60 * 1000).slice(-800);
-            
             allUsersData[myUid] = { userName: currentUserName, color: dbUserColor, history: [...localHistory], lastUpdate: Date.now() };
             renderMap(); if (shouldUpload) saveLocationToServer();
         }
 
         function saveLocationToServer() {
             if (!isSystemReady || localHistory.length === 0 || isSpectatorMode) return;
-            const payload = {
-                type: "update_location",
-                uid: myUid,
-                data: { userName: currentUserName, color: dbUserColor, history: localHistory.slice(-50), lastUpdate: Date.now() }
-            };
+            const payload = { type: "update_location", uid: myUid, data: { userName: currentUserName, color: dbUserColor, history: localHistory.slice(-50), lastUpdate: Date.now() } };
             ws.send(JSON.stringify(payload));
         }
 
