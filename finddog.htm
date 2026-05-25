@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>尋狗地圖 - 合作探索迷霧</title>
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html {
@@ -17,24 +15,59 @@
             overflow: hidden;
             background-color: #f3f4f6;
         }
-        #map {
+        #map-container {
+            position: relative;
             width: 100vw;
             height: 100vh;
-            z-index: 1;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 10; /* 地圖基本層 */
         }
         
-        /* 狗狗標籤樣式 */
+        /* 迷霧畫布層：獨立於地圖外，疊加在圖磚上，但絕對不能擋住 Marker 點擊 */
+        #fog-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 15; /* 夾在地圖圖磚與 Marker 之間 */
+            pointer-events: none; /* 穿透拖曳 */
+        }
+
+        /* 確保 Leaflet 的 Marker 容器永遠浮在迷霧畫布之上 */
+        .leaflet-marker-pane {
+            z-index: 600 !important;
+        }
+        .leaflet-shadow-pane {
+            z-index: 500 !important;
+        }
+        .leaflet-overlay-pane {
+            z-index: 400 !important; /* 軌跡點層 */
+        }
+        
+        /* 狗狗與志工標籤專用樣式（強制給予明確寬高，防止 iOS 渲染為 0） */
+        .custom-div-icon {
+            width: auto !important;
+            height: auto !important;
+        }
         .user-label-container {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             transform: translate(-50%, -100%);
+            width: 120px; /* 給予安全寬度 */
             pointer-events: none;
         }
         .user-avatar {
-            width: 16px;
-            height: 16px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             border: 2px solid white;
             box-shadow: 0 0 6px rgba(0,0,0,0.6);
@@ -47,23 +80,23 @@
             font-weight: 800;
             box-shadow: 0 2px 4px rgba(0,0,0,0.4);
             white-space: nowrap;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
-        /* 專屬閃爍紅點特效 */
+        /* 自己專屬的閃爍紅點特效 */
         .blinking-red-dot {
-            background-color: #ef4444; 
+            background-color: #ef4444 !important; 
             animation: pulse-red 1.5s infinite;
         }
 
         @keyframes pulse-red {
             0% {
                 transform: scale(0.9);
-                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.8);
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.9);
             }
             70% {
-                transform: scale(1.2);
-                box-shadow: 0 0 0 12px rgba(239, 68, 68, 0);
+                transform: scale(1.3);
+                box-shadow: 0 0 0 14px rgba(239, 68, 68, 0);
             }
             100% {
                 transform: scale(0.9);
@@ -74,9 +107,11 @@
 </head>
 <body>
 
-    <div id="map"></div>
+    <div id="map-container">
+        <div id="map"></div>
+        <canvas id="fog-canvas"></canvas>
+    </div>
 
-    <!-- 啟動遮罩層 -->
     <div id="startup-overlay" class="absolute inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-center justify-center transition-opacity duration-500">
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md text-center transform transition-transform">
             <div class="mx-auto bg-amber-100 text-amber-500 w-20 h-20 rounded-full flex items-center justify-center mb-4">
@@ -99,7 +134,6 @@
         </div>
     </div>
 
-    <!-- 常駐 UI 元件 -->
     <div id="status-toast" class="absolute top-4 right-4 z-[1001] bg-white/90 backdrop-blur rounded-lg shadow p-3 text-sm font-medium text-gray-700 hidden">
         <div class="flex items-center gap-2">
             <span class="relative flex h-3 w-3" id="sync-ping">
@@ -117,10 +151,8 @@
         </svg>
     </button>
 
-    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-    <!-- App Logic -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -141,17 +173,9 @@
         let isSystemReady = false;
 
         // 迷霧系統變數
-        let fogCanvas, fogCtx;
+        const fogCanvas = document.getElementById('fog-canvas');
+        let fogCtx = fogCanvas.getContext('2d');
         let fogRenderPending = false;
-
-        // --- DOM 元素 ---
-        const startupOverlay = document.getElementById('startup-overlay');
-        const nameInput = document.getElementById('user-name-input');
-        const masterStartBtn = document.getElementById('master-start-btn');
-        const errorMsg = document.getElementById('error-msg');
-        const statusToast = document.getElementById('status-toast');
-        const toastText = document.getElementById('toast-text');
-        const locateBtn = document.getElementById('locate-btn');
 
         function generateRandomColor() {
             const h = Math.floor(Math.random() * 360);
@@ -160,16 +184,24 @@
 
         // --- 1. 初始化系統 ---
         async function initSystem() {
+            // 初始化 Leaflet
             map = L.map('map', { zoomControl: false }).setView([23.6978, 120.9605], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
+            
+            // 重要：建立專用標記圖層並加入地圖
             markersLayer = L.layerGroup().addTo(map);
             
-            // 初始化迷霧層 (放置在 Leaflet 內部，位於地圖之上、按鈕之下)
-            initFogSystem();
+            // 初始化迷霧尺寸與事件
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            map.on('move', requestFogRender);
+            map.on('zoom', requestFogRender);
 
             map.on('locationfound', onLocationFound);
             map.on('locationerror', onLocationError);
+            
+            // 定時刷新（用於軌跡變淡）
             setInterval(renderMap, 15000); 
 
             // 連線 Firebase
@@ -197,31 +229,11 @@
             });
         }
 
-        // --- 迷霧系統 (Fog of War) ---
-        function initFogSystem() {
-            fogCanvas = document.createElement('canvas');
-            fogCanvas.id = 'fog-canvas';
-            fogCanvas.style.position = 'absolute';
-            fogCanvas.style.top = '0';
-            fogCanvas.style.left = '0';
-            // Z-index 500: 在地圖圖磚(200)與軌跡(400)之上，但被 Leaflet 原生控制鈕(1000)壓在下方
-            fogCanvas.style.zIndex = '500'; 
-            fogCanvas.style.pointerEvents = 'none'; // 讓滑鼠穿透畫布拖曳地圖
-            
-            document.getElementById('map').appendChild(fogCanvas);
-            fogCtx = fogCanvas.getContext('2d');
-
-            function resizeCanvas() {
-                fogCanvas.width = window.innerWidth;
-                fogCanvas.height = window.innerHeight;
-                requestFogRender();
-            }
-            window.addEventListener('resize', resizeCanvas);
-            resizeCanvas();
-
-            // 當地圖拖曳或縮放時，重新計算視野位置
-            map.on('move', requestFogRender);
-            map.on('zoom', requestFogRender);
+        // --- 迷霧繪製邏輯（徹底修復 Z-index 問題） ---
+        function resizeCanvas() {
+            fogCanvas.width = window.innerWidth;
+            fogCanvas.height = window.innerHeight;
+            requestFogRender();
         }
 
         function requestFogRender() {
@@ -237,39 +249,35 @@
         function renderFog() {
             if (!map || !fogCtx) return;
             
-            // 1. 填滿暗灰色迷霧
+            // 清空並填滿暗色迷霧
             fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
-            fogCtx.fillStyle = 'rgba(25, 30, 35, 0.85)'; // 帶點藍黑的迷霧色
+            fogCtx.fillStyle = 'rgba(20, 25, 30, 0.88)'; // 暗黑色迷霧
             fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
             
-            // 2. 計算 500 公尺在當下縮放級別的「螢幕像素半徑」
+            // 計算 500 公尺在當前地圖級別下的像素大小
             const center = map.getCenter();
-            const latAcc = center.lat;
-            // Web Mercator 投影公式
-            const metersPerPixel = (40075016.686 * Math.abs(Math.cos(latAcc * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
+            const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
             const radiusPx = 500 / metersPerPixel;
 
-            if (radiusPx < 1) return; // 縮得太小不渲染以免卡頓
+            if (radiusPx < 1) return;
 
-            // 3. 設定混合模式，畫上去的漸層會「挖空」下方的迷霧
+            // 啟用挖空模式
             fogCtx.globalCompositeOperation = 'destination-out';
 
             Object.values(allUsersData).forEach(userData => {
                 if (!userData.history) return;
                 
                 userData.history.forEach(point => {
-                    // 將經緯度轉為目前螢幕的 X/Y 座標
+                    // 將地圖經緯度精確換算成網頁上的 X, Y 座標
                     const pt = map.latLngToContainerPoint([point.lat, point.lng]);
                     
-                    // 效能優化：只處理在螢幕可視範圍內（加個半徑緩衝）的點
                     if (pt.x > -radiusPx && pt.x < fogCanvas.width + radiusPx &&
                         pt.y > -radiusPx && pt.y < fogCanvas.height + radiusPx) {
                         
-                        // 建立放射狀漸層，中心全透，外圍柔和邊界
                         const grad = fogCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radiusPx);
-                        grad.addColorStop(0, 'rgba(0, 0, 0, 1)');      // 圓心完全挖空 (清晰視野)
-                        grad.addColorStop(0.6, 'rgba(0, 0, 0, 1)');    // 延伸至 60% 保持清晰
-                        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');      // 邊緣柔和過渡回迷霧
+                        grad.addColorStop(0, 'rgba(0, 0, 0, 1)');
+                        grad.addColorStop(0.7, 'rgba(0, 0, 0, 1)'); // 保持 70% 範圍內清晰
+                        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');   // 邊緣羽化
                         
                         fogCtx.fillStyle = grad;
                         fogCtx.beginPath();
@@ -279,7 +287,7 @@
                 });
             });
 
-            // 恢復正常繪圖模式
+            // 還原模式
             fogCtx.globalCompositeOperation = 'source-over';
         }
 
@@ -321,7 +329,7 @@
             startLocationServices(false);
         });
 
-        // --- 3. 定位服務與 Firestore ---
+        // --- 3. 定位核心服務 ---
         function startLocationServices(isAutoStart) {
             if (!navigator.geolocation) {
                 showError("您的瀏覽器不支援定位功能");
@@ -364,18 +372,19 @@
 
         function handleValidPosition(lat, lng, timestamp) {
             if (localHistory.length === 0) {
-                map.setView([lat, lng], 16); 
+                map.setView([lat, lng], 17); // 首次強制移至中心並放大
             }
 
             if (lastSavedPos) {
                 const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                if (dist < 5) return; 
+                if (dist < 5) return; // 小於 5 公尺不重複紀錄
             }
 
             const newPoint = { lat, lng, timestamp };
             localHistory.push(newPoint);
             lastSavedPos = newPoint;
 
+            // 僅保留一小時內軌跡
             const oneHourAgo = timestamp - 60 * 60 * 1000;
             localHistory = localHistory.filter(p => p.timestamp > oneHourAgo);
             if (localHistory.length > 200) localHistory = localHistory.slice(-200);
@@ -397,7 +406,7 @@
             } catch (e) {}
         }
 
-        // --- 4. 監聽與渲染 ---
+        // --- 4. 監聽與即時渲染（修復點無法穿透顯示的問題） ---
         function listenToAllLocations() {
             const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
             onSnapshot(collectionRef, (snapshot) => {
@@ -412,7 +421,9 @@
         }
 
         function renderMap() {
+            if (!markersLayer) return;
             markersLayer.clearLayers();
+            
             const now = Date.now();
             const maxFadeTime = 30 * 60 * 1000; 
 
@@ -422,7 +433,9 @@
 
                 const history = userData.history;
                 const isSelf = currentUser && (uid === currentUser.uid);
-                const renderColor = isSelf ? '#ef4444' : (userData.color || '#333');
+                
+                // 自己顯示為鮮紅色，其他人顯示資料庫配發的隨機色
+                const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
 
                 history.forEach((point, index) => {
                     const age = Math.max(0, now - point.timestamp);
@@ -432,10 +445,17 @@
                         const isLatest = index === history.length - 1;
 
                         if (!isLatest) {
+                            // 歷史軌跡點
                             L.circleMarker([point.lat, point.lng], {
-                                radius: 4, fillColor: renderColor, color: renderColor, weight: 1, opacity: opacity * 0.5, fillOpacity: opacity
+                                radius: 5, 
+                                fillColor: renderColor, 
+                                color: renderColor, 
+                                weight: 1, 
+                                opacity: opacity * 0.6, 
+                                fillOpacity: opacity
                             }).addTo(markersLayer);
                         } else {
+                            // 最新位置圖標
                             const avatarHtml = isSelf 
                                 ? `<div class="user-avatar blinking-red-dot"></div>`
                                 : `<div class="user-avatar" style="background-color: ${renderColor};"></div>`;
@@ -446,21 +466,30 @@
 
                             const customIcon = L.divIcon({
                                 className: 'custom-div-icon',
-                                html: `<div class="user-label-container"><div class="user-name-tag ${nameClasses}">${userData.userName}</div>${avatarHtml}</div>`,
-                                iconSize: null, iconAnchor: [0, 0]
+                                html: `
+                                    <div class="user-label-container">
+                                        <div class="user-name-tag ${nameClasses}">${userData.userName}</div>
+                                        ${avatarHtml}
+                                    </div>
+                                `,
+                                iconAnchor: [0, 0]
                             });
                             
-                            L.marker([point.lat, point.lng], { icon: customIcon, zIndexOffset: isSelf ? 2000 : 1000 }).addTo(markersLayer);
+                            // 強制自己置頂，他人依序排列，並加入 markersLayer
+                            L.marker([point.lat, point.lng], { 
+                                icon: customIcon, 
+                                zIndexOffset: isSelf ? 5000 : 1000 
+                            }).addTo(markersLayer);
                         }
                     }
                 });
             });
             
-            // 地圖標記更新後，也呼叫迷霧更新，確保視野同步挖空
+            // 圖層刷新後同步刷新迷霧挖空
             requestFogRender();
         }
 
-        // --- 工具：計算距離、回到中心、錯誤處理 ---
+        // --- 工具功能 ---
         function getDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3; 
             const p1 = lat1 * Math.PI/180;
@@ -473,23 +502,21 @@
 
         locateBtn.addEventListener('click', () => {
             if (lastSavedPos) {
-                map.setView([lastSavedPos.lat, lastSavedPos.lng], 16, { animate: true });
+                map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true });
             }
         });
 
         function handleGeoError(error, isAutoStart) {
             masterStartBtn.innerText = "授權定位並開始";
-            
             if (isAutoStart) {
                 startupOverlay.style.display = 'flex';
                 startupOverlay.style.opacity = '1';
                 statusToast.classList.add('hidden');
                 locateBtn.classList.add('hidden');
             }
-
             let msg = "無法取得位置。";
             if (error.code === 1) {
-                msg = "未取得定位權限。請至手機「設定 > 隱私權 > 定位服務」中確認權限已開啟。";
+                msg = "未取得定位權限。請至手機設定中確認您的瀏覽器已允許存取位置資訊。";
             } else if (error.code === 2) {
                 msg = "目前無法獲取您的位置，請確認 GPS 已開啟。";
             } else if (error.code === 3) {
