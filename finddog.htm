@@ -596,7 +596,8 @@
 
             if (lastSavedPos) {
                 const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                if (dist < 5) return; 
+                // 距離小於 100 公尺則不上傳新點，以節省流量
+                if (dist < 100) return; 
             }
 
             const newPoint = { lat, lng, timestamp };
@@ -770,7 +771,7 @@
                         document.execCommand('copy');
                         alert("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
                     } catch (err) {
-                        alert("複製失敗，請手手動複製上方網址。");
+                        alert("複製失敗，請手動複製上方網址。");
                     }
                     document.body.removeChild(textArea);
                 };
