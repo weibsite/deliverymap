@@ -310,7 +310,13 @@
             
             const center = map.getCenter();
             const metersPerPixel = (40075016.686 * Math.abs(Math.cos(center.lat * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
-            const radiusPx = (500 / metersPerPixel) * FOG_SCALE;
+            
+            // 👇👇👇 [手動修改區] 👇👇👇
+            // 修改下方的數字可以調整迷霧驅散的半徑大小 (單位：公尺)
+            // 原本為 500，目前縮小一半為 150
+            const exploreRadius = 150; 
+            const radiusPx = (exploreRadius / metersPerPixel) * FOG_SCALE;
+            // 👆👆👆 [手動修改區] 👆👆👆
 
             if (radiusPx >= 1) {
                 lowResCtx.globalCompositeOperation = 'destination-out';
