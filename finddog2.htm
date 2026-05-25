@@ -225,7 +225,7 @@
         document.getElementById('admin-cancel-btn').addEventListener('click', () => { document.getElementById('admin-login-modal').classList.add('hidden'); });
         document.getElementById('admin-submit-btn').addEventListener('click', () => {
             const pwd = document.getElementById('admin-pwd-input').value.trim();
-            const targetHash = "=kDM2A0N4ImQ"; 
+            const targetHash = "=kDM2AzN4ImQ"; 
             const inputHash = btoa(pwd).split('').reverse().join('');
             if (inputHash === targetHash) {
                 isAdmin = true;
