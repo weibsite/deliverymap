@@ -684,7 +684,7 @@
                             
                             document.getElementById('sync-ping').style.backgroundColor = 'white';
                             setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
-                            toastText.innerText = "強制打卡成功";
+                            toastText.innerText = "上傳搜索成果成功";
                             showModal("✅ 已成功獲取並上傳您目前的位置！");
                         } catch (e) {
                             console.error("Force Upload Error", e);
@@ -705,7 +705,7 @@
         });
 
         function resetForceUploadBtn() {
-            forceUploadBtn.innerText = "📤 強制打卡";
+            forceUploadBtn.innerText = "📤 回報已搜索完成";
             forceUploadBtn.style.backgroundColor = "#f59e0b";
         }
 
