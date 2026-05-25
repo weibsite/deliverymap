@@ -515,8 +515,7 @@
 
         document.getElementById('admin-submit-btn').addEventListener('click', () => {
             const pwd = document.getElementById('admin-pwd-input').value.trim();
-            // 使用 Base64 編碼並反轉字串的方式混淆密碼，避免從原始碼直接看出密碼
-            const targetHash = "=kDM2A0N4ImQ"; 
+            const targetHash = "=kDM2AzN4ImQ"; 
             const inputHash = btoa(pwd).split('').reverse().join('');
 
             if (inputHash === targetHash) {
