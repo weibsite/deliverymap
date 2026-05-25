@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>尋狗地圖 - 即時定位追蹤</title>
+    <title>尋狗地圖 - 合作探索迷霧</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Leaflet CSS -->
@@ -29,9 +29,8 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* 讓圖標底部尖端對齊實際座標 */
             transform: translate(-50%, -100%);
-            pointer-events: none; /* 避免擋住地圖拖曳 */
+            pointer-events: none;
         }
         .user-avatar {
             width: 16px;
@@ -51,9 +50,9 @@
             margin-bottom: 6px;
         }
 
-        /* 自己專屬的閃爍紅點特效 */
+        /* 專屬閃爍紅點特效 */
         .blinking-red-dot {
-            background-color: #ef4444; /* 紅色 */
+            background-color: #ef4444; 
             animation: pulse-red 1.5s infinite;
         }
 
@@ -78,7 +77,6 @@
     <div id="map"></div>
 
     <!-- 啟動遮罩層 -->
-    <!-- 預設先顯示，如果偵測到 localStorage 有紀錄會瞬間隱藏 -->
     <div id="startup-overlay" class="absolute inset-0 z-[2000] bg-black/60 backdrop-blur-sm flex items-center justify-center transition-opacity duration-500">
         <div class="bg-white rounded-2xl shadow-2xl p-6 w-11/12 max-w-md text-center transform transition-transform">
             <div class="mx-auto bg-amber-100 text-amber-500 w-20 h-20 rounded-full flex items-center justify-center mb-4">
@@ -89,7 +87,7 @@
             </div>
             
             <h2 class="text-2xl font-bold text-gray-800 mb-2">尋狗地圖</h2>
-            <p class="text-gray-600 mb-6 text-sm">初次使用請輸入稱呼，並允許定位權限。之後開啟將自動進入地圖。</p>
+            <p class="text-gray-600 mb-4 text-sm">初次使用請輸入稱呼並允許定位權限。您的軌跡將為大家<strong class="text-amber-600">驅散周圍 500 公尺的迷霧</strong>，一起合作探索吧！</p>
             
             <input type="text" id="user-name-input" placeholder="請輸入稱呼 (留空則隨機配發)" class="w-full border-2 border-gray-200 rounded-xl p-3 text-lg focus:outline-none focus:border-amber-500 transition-colors mb-4 text-center" />
             
@@ -102,7 +100,6 @@
     </div>
 
     <!-- 常駐 UI 元件 -->
-    <!-- 狀態 Toast -->
     <div id="status-toast" class="absolute top-4 right-4 z-[1001] bg-white/90 backdrop-blur rounded-lg shadow p-3 text-sm font-medium text-gray-700 hidden">
         <div class="flex items-center gap-2">
             <span class="relative flex h-3 w-3" id="sync-ping">
@@ -113,7 +110,6 @@
         </div>
     </div>
 
-    <!-- 重新置中按鈕 -->
     <button id="locate-btn" class="absolute bottom-8 left-4 z-[1001] bg-white p-3 rounded-full shadow-lg text-gray-700 hover:text-blue-600 active:bg-gray-100 transition-colors hidden focus:outline-none border border-gray-200">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="3" />
@@ -134,17 +130,19 @@
         let map, markersLayer;
         let auth, db, appId, currentUser;
         
-        // 個人資料
+        // 個人與定位資料
         let currentUserName = "";
-        let dbUserColor = ""; // 存在資料庫中給別人看的顏色 (隨機分配)
-        
-        // 定位資料
+        let dbUserColor = ""; 
         let localHistory = []; 
         let lastSavedPos = null;
         let allUsersData = {};
         
         let watchId = null;
         let isSystemReady = false;
+
+        // 迷霧系統變數
+        let fogCanvas, fogCtx;
+        let fogRenderPending = false;
 
         // --- DOM 元素 ---
         const startupOverlay = document.getElementById('startup-overlay');
@@ -154,27 +152,24 @@
         const statusToast = document.getElementById('status-toast');
         const toastText = document.getElementById('toast-text');
         const locateBtn = document.getElementById('locate-btn');
-        const syncPing = document.getElementById('sync-ping');
 
-        // --- 產生隨機鮮豔顏色 (給其他志工看的專屬色) ---
         function generateRandomColor() {
             const h = Math.floor(Math.random() * 360);
             return `hsl(${h}, 85%, 45%)`;
         }
 
-        // --- 1. 初始化系統與 Firebase ---
+        // --- 1. 初始化系統 ---
         async function initSystem() {
-            // 初始化地圖
             map = L.map('map', { zoomControl: false }).setView([23.6978, 120.9605], 7);
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
             markersLayer = L.layerGroup().addTo(map);
             
-            // 綁定地圖原生定位事件
+            // 初始化迷霧層 (放置在 Leaflet 內部，位於地圖之上、按鈕之下)
+            initFogSystem();
+
             map.on('locationfound', onLocationFound);
             map.on('locationerror', onLocationError);
-            
-            // 地圖定時重繪 (漸淡特效需要)
             setInterval(renderMap, 15000); 
 
             // 連線 Firebase
@@ -184,18 +179,14 @@
             db = getFirestore(app);
             appId = typeof __app_id !== 'undefined' ? __app_id : 'dog-finder-app';
 
-            // 處理登入
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch(e) {
-                console.error("Auth error", e);
-            }
+            } catch(e) { console.error("Auth error", e); }
 
-            // 監聽登入狀態並確認是否自動啟動
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     currentUser = user;
@@ -206,33 +197,114 @@
             });
         }
 
-        // --- 2. 檢查本機儲存 (決定是否略過視窗) ---
+        // --- 迷霧系統 (Fog of War) ---
+        function initFogSystem() {
+            fogCanvas = document.createElement('canvas');
+            fogCanvas.id = 'fog-canvas';
+            fogCanvas.style.position = 'absolute';
+            fogCanvas.style.top = '0';
+            fogCanvas.style.left = '0';
+            // Z-index 500: 在地圖圖磚(200)與軌跡(400)之上，但被 Leaflet 原生控制鈕(1000)壓在下方
+            fogCanvas.style.zIndex = '500'; 
+            fogCanvas.style.pointerEvents = 'none'; // 讓滑鼠穿透畫布拖曳地圖
+            
+            document.getElementById('map').appendChild(fogCanvas);
+            fogCtx = fogCanvas.getContext('2d');
+
+            function resizeCanvas() {
+                fogCanvas.width = window.innerWidth;
+                fogCanvas.height = window.innerHeight;
+                requestFogRender();
+            }
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // 當地圖拖曳或縮放時，重新計算視野位置
+            map.on('move', requestFogRender);
+            map.on('zoom', requestFogRender);
+        }
+
+        function requestFogRender() {
+            if (!fogRenderPending) {
+                fogRenderPending = true;
+                requestAnimationFrame(() => {
+                    renderFog();
+                    fogRenderPending = false;
+                });
+            }
+        }
+
+        function renderFog() {
+            if (!map || !fogCtx) return;
+            
+            // 1. 填滿暗灰色迷霧
+            fogCtx.clearRect(0, 0, fogCanvas.width, fogCanvas.height);
+            fogCtx.fillStyle = 'rgba(25, 30, 35, 0.85)'; // 帶點藍黑的迷霧色
+            fogCtx.fillRect(0, 0, fogCanvas.width, fogCanvas.height);
+            
+            // 2. 計算 500 公尺在當下縮放級別的「螢幕像素半徑」
+            const center = map.getCenter();
+            const latAcc = center.lat;
+            // Web Mercator 投影公式
+            const metersPerPixel = (40075016.686 * Math.abs(Math.cos(latAcc * Math.PI/180))) / Math.pow(2, map.getZoom() + 8);
+            const radiusPx = 500 / metersPerPixel;
+
+            if (radiusPx < 1) return; // 縮得太小不渲染以免卡頓
+
+            // 3. 設定混合模式，畫上去的漸層會「挖空」下方的迷霧
+            fogCtx.globalCompositeOperation = 'destination-out';
+
+            Object.values(allUsersData).forEach(userData => {
+                if (!userData.history) return;
+                
+                userData.history.forEach(point => {
+                    // 將經緯度轉為目前螢幕的 X/Y 座標
+                    const pt = map.latLngToContainerPoint([point.lat, point.lng]);
+                    
+                    // 效能優化：只處理在螢幕可視範圍內（加個半徑緩衝）的點
+                    if (pt.x > -radiusPx && pt.x < fogCanvas.width + radiusPx &&
+                        pt.y > -radiusPx && pt.y < fogCanvas.height + radiusPx) {
+                        
+                        // 建立放射狀漸層，中心全透，外圍柔和邊界
+                        const grad = fogCtx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, radiusPx);
+                        grad.addColorStop(0, 'rgba(0, 0, 0, 1)');      // 圓心完全挖空 (清晰視野)
+                        grad.addColorStop(0.6, 'rgba(0, 0, 0, 1)');    // 延伸至 60% 保持清晰
+                        grad.addColorStop(1, 'rgba(0, 0, 0, 0)');      // 邊緣柔和過渡回迷霧
+                        
+                        fogCtx.fillStyle = grad;
+                        fogCtx.beginPath();
+                        fogCtx.arc(pt.x, pt.y, radiusPx, 0, 2 * Math.PI);
+                        fogCtx.fill();
+                    }
+                });
+            });
+
+            // 恢復正常繪圖模式
+            fogCtx.globalCompositeOperation = 'source-over';
+        }
+
+        // --- 2. 檢查本機儲存與啟動 ---
         function checkLocalSetupAndStart() {
             const savedName = localStorage.getItem('dogMap_userName');
             const savedColor = localStorage.getItem('dogMap_userColor');
 
             if (savedName) {
-                // 是老用戶，直接載入記憶資料並啟動
                 currentUserName = savedName;
                 dbUserColor = savedColor || generateRandomColor();
                 if (!savedColor) localStorage.setItem('dogMap_userColor', dbUserColor);
 
-                // 隱藏啟動畫面，顯示 UI
                 startupOverlay.style.display = 'none';
                 statusToast.classList.remove('hidden');
                 locateBtn.classList.remove('hidden');
                 toastText.innerText = "自動定位中...";
 
-                // 啟動定位 (因為是第二次以上，多數瀏覽器會自動放行)
                 startLocationServices(true);
             } else {
-                // 新用戶，停留在啟動畫面等待點擊
                 startupOverlay.style.display = 'flex';
                 startupOverlay.style.opacity = '1';
             }
         }
 
-        // --- 3. 手動點擊開始按鈕 (新用戶或被阻擋時) ---
         masterStartBtn.addEventListener('click', (e) => {
             e.preventDefault();
             errorMsg.classList.add('hidden');
@@ -241,36 +313,30 @@
             let name = nameInput.value.trim();
             if (!name) name = `尋狗志工_${Math.floor(1000 + Math.random() * 9000)}`;
             currentUserName = name;
-            
             dbUserColor = generateRandomColor();
 
-            // 記憶在瀏覽器中
             localStorage.setItem('dogMap_userName', currentUserName);
             localStorage.setItem('dogMap_userColor', dbUserColor);
 
             startLocationServices(false);
         });
 
-        // --- 4. 啟動核心定位 ---
+        // --- 3. 定位服務與 Firestore ---
         function startLocationServices(isAutoStart) {
             if (!navigator.geolocation) {
                 showError("您的瀏覽器不支援定位功能");
                 return;
             }
 
-            // 單次定位
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
                     finishUIReveal();
                 },
-                (error) => {
-                    handleGeoError(error, isAutoStart);
-                },
+                (error) => { handleGeoError(error, isAutoStart); },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
             );
 
-            // 連續追蹤
             if (watchId) navigator.geolocation.clearWatch(watchId);
             watchId = navigator.geolocation.watchPosition(
                 (position) => {
@@ -280,7 +346,6 @@
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
             );
 
-            // 地圖輔助定位
             map.locate({ setView: false, watch: true, enableHighAccuracy: true });
         }
 
@@ -292,7 +357,6 @@
             toastText.innerText = "位置同步成功";
         }
 
-        // --- 5. 處理座標與上傳 ---
         function onLocationFound(e) {
             handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
         }
@@ -300,19 +364,18 @@
 
         function handleValidPosition(lat, lng, timestamp) {
             if (localHistory.length === 0) {
-                map.setView([lat, lng], 17); // 第一次定位自動放大至中
+                map.setView([lat, lng], 16); 
             }
 
             if (lastSavedPos) {
                 const dist = getDistance(lastSavedPos.lat, lastSavedPos.lng, lat, lng);
-                if (dist < 5) return; // 小於 5 公尺不紀錄
+                if (dist < 5) return; 
             }
 
             const newPoint = { lat, lng, timestamp };
             localHistory.push(newPoint);
             lastSavedPos = newPoint;
 
-            // 過濾一小時前的舊紀錄
             const oneHourAgo = timestamp - 60 * 60 * 1000;
             localHistory = localHistory.filter(p => p.timestamp > oneHourAgo);
             if (localHistory.length > 200) localHistory = localHistory.slice(-200);
@@ -324,21 +387,17 @@
             if (!isSystemReady || !currentUser || localHistory.length === 0) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
             try {
-                // 注意：這裡上傳的是 dbUserColor (隨機色)，紅點特效由本機繪製決定
                 await setDoc(docRef, {
                     userName: currentUserName,
                     color: dbUserColor,
                     history: localHistory,
                     lastUpdate: Date.now()
                 }, { merge: true });
-                
                 toastText.innerText = "即時同步中";
-            } catch (e) {
-                console.error("Firestore Write Error", e);
-            }
+            } catch (e) {}
         }
 
-        // --- 6. 監聽與繪製地圖 (解決紅點不顯示的問題) ---
+        // --- 4. 監聽與渲染 ---
         function listenToAllLocations() {
             const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
             onSnapshot(collectionRef, (snapshot) => {
@@ -362,15 +421,10 @@
                 if (!userData.history || userData.history.length === 0) return;
 
                 const history = userData.history;
-                
-                // 【核心判斷】：確定這個資料是不是我自己的
                 const isSelf = currentUser && (uid === currentUser.uid);
-                
-                // 自己在本機端永遠強制用紅色 (Tailwind red-500: #ef4444)，別人用資料庫的顏色
                 const renderColor = isSelf ? '#ef4444' : (userData.color || '#333');
 
                 history.forEach((point, index) => {
-                    // 防止時間差產生負數
                     const age = Math.max(0, now - point.timestamp);
                     let opacity = Math.max(0.15, Math.min(1.0, 1 - (age / maxFadeTime)));
 
@@ -378,17 +432,10 @@
                         const isLatest = index === history.length - 1;
 
                         if (!isLatest) {
-                            // 歷史軌跡的小圓點
                             L.circleMarker([point.lat, point.lng], {
-                                radius: 4, 
-                                fillColor: renderColor, 
-                                color: renderColor, 
-                                weight: 1, 
-                                opacity: opacity * 0.5, 
-                                fillOpacity: opacity
+                                radius: 4, fillColor: renderColor, color: renderColor, weight: 1, opacity: opacity * 0.5, fillOpacity: opacity
                             }).addTo(markersLayer);
                         } else {
-                            // 最新的定位點標籤
                             const avatarHtml = isSelf 
                                 ? `<div class="user-avatar blinking-red-dot"></div>`
                                 : `<div class="user-avatar" style="background-color: ${renderColor};"></div>`;
@@ -397,28 +444,20 @@
                                 ? 'text-red-600 border border-red-200' 
                                 : 'text-gray-800 border border-gray-200';
 
-                            // iconSize: null 非常重要，讓 Leaflet 允許 CSS 完全控制大小，不會把我們裁切掉
                             const customIcon = L.divIcon({
                                 className: 'custom-div-icon',
-                                html: `
-                                    <div class="user-label-container">
-                                        <div class="user-name-tag ${nameClasses}">${userData.userName}</div>
-                                        ${avatarHtml}
-                                    </div>
-                                `,
-                                iconSize: null, 
-                                iconAnchor: [0, 0]
+                                html: `<div class="user-label-container"><div class="user-name-tag ${nameClasses}">${userData.userName}</div>${avatarHtml}</div>`,
+                                iconSize: null, iconAnchor: [0, 0]
                             });
                             
-                            // 自己保持在最上層
-                            L.marker([point.lat, point.lng], { 
-                                icon: customIcon, 
-                                zIndexOffset: isSelf ? 2000 : 1000 
-                            }).addTo(markersLayer);
+                            L.marker([point.lat, point.lng], { icon: customIcon, zIndexOffset: isSelf ? 2000 : 1000 }).addTo(markersLayer);
                         }
                     }
                 });
             });
+            
+            // 地圖標記更新後，也呼叫迷霧更新，確保視野同步挖空
+            requestFogRender();
         }
 
         // --- 工具：計算距離、回到中心、錯誤處理 ---
@@ -434,14 +473,13 @@
 
         locateBtn.addEventListener('click', () => {
             if (lastSavedPos) {
-                map.setView([lastSavedPos.lat, lastSavedPos.lng], 17, { animate: true });
+                map.setView([lastSavedPos.lat, lastSavedPos.lng], 16, { animate: true });
             }
         });
 
         function handleGeoError(error, isAutoStart) {
             masterStartBtn.innerText = "授權定位並開始";
             
-            // 如果是自動啟動失敗（例如權限被收回），則重新顯示手動啟動畫面
             if (isAutoStart) {
                 startupOverlay.style.display = 'flex';
                 startupOverlay.style.opacity = '1';
@@ -451,7 +489,7 @@
 
             let msg = "無法取得位置。";
             if (error.code === 1) {
-                msg = "未取得定位權限。請至手機「設定 > 隱私權 > 定位服務」中確認 Safari/Chrome 的權限已開啟。";
+                msg = "未取得定位權限。請至手機「設定 > 隱私權 > 定位服務」中確認權限已開啟。";
             } else if (error.code === 2) {
                 msg = "目前無法獲取您的位置，請確認 GPS 已開啟。";
             } else if (error.code === 3) {
@@ -465,7 +503,6 @@
             errorMsg.classList.remove('hidden');
         }
 
-        // 啟動點
         window.addEventListener('DOMContentLoaded', initSystem);
     </script>
 </body>
