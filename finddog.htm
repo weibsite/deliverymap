@@ -100,6 +100,18 @@
             margin-bottom: 6px;
         }
 
+        /* 像素風格的 Leaflet Popup */
+        .pixel-popup .leaflet-popup-content-wrapper {
+            background-color: white;
+            border: 4px solid #1a202c;
+            border-radius: 0;
+            box-shadow: 4px 4px 0px #1a202c;
+            padding: 0;
+        }
+        .pixel-popup .leaflet-popup-tip-container {
+            display: none; /* 隱藏下方三角形，保持方正感 */
+        }
+
         /* 修正閃爍動畫，避免完全透明變成隱形 */
         .blinking-red-pixel {
             animation: blink-pixel 1s infinite alternate;
@@ -170,10 +182,19 @@
         </div>
     </div>
 
-    <button id="spectator-btn" class="absolute bottom-24 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
+    <!-- 左下角控制按鈕群，增加間距依序往上堆疊 -->
+    <button id="force-upload-btn" class="absolute bottom-56 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
+        📤 強制打卡
+    </button>
+    <button id="nav-pin-btn" class="absolute bottom-44 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
+        📍 導航標記
+    </button>
+    <button id="toggle-fog-btn" class="absolute bottom-32 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
+        👁️ 關閉迷霧
+    </button>
+    <button id="spectator-btn" class="absolute bottom-20 left-4 z-[2000] pixel-btn p-2 text-xs hidden">
         觀看模式
     </button>
-
     <button id="locate-btn" class="absolute bottom-8 left-4 z-[2000] pixel-btn p-3 hidden flex items-center justify-center">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="3">
             <circle cx="12" cy="12" r="3" />
@@ -208,6 +229,10 @@
         let isSystemReady = false;
         let isOfflineMode = false;
         let isSpectatorMode = false; 
+        
+        // 新功能狀態
+        let isFogVisible = true;
+        let navMarker = null;
 
         // 迷霧系統變數
         let fogCanvas, fogCtx;
@@ -231,6 +256,10 @@
         const customModal = document.getElementById('custom-modal');
         const customModalText = document.getElementById('custom-modal-text');
         const customModalBtn = document.getElementById('custom-modal-btn');
+        
+        const toggleFogBtn = document.getElementById('toggle-fog-btn');
+        const navPinBtn = document.getElementById('nav-pin-btn');
+        const forceUploadBtn = document.getElementById('force-upload-btn');
 
         function escapeHTML(str) {
             if (!str) return '';
@@ -375,14 +404,14 @@
             if (!fogRenderPending) {
                 fogRenderPending = true;
                 requestAnimationFrame(() => {
-                    renderFog();
+                    if(isFogVisible) renderFog();
                     fogRenderPending = false;
                 });
             }
         }
 
         function renderFog() {
-            if (!map || !fogCtx) return;
+            if (!map || !fogCtx || !isFogVisible) return;
             
             const w = Math.ceil(fogCanvas.width * FOG_SCALE);
             const h = Math.ceil(fogCanvas.height * FOG_SCALE);
@@ -492,19 +521,18 @@
         // --- 2. 檢查本機儲存與啟動 ---
         function checkLocalSetupAndStart() {
             const savedName = localStorage.getItem('dogMap_userName');
-            const savedColor = localStorage.getItem('dogMap_userColor');
+            
+            // 安全修正：使用 Regex 嚴格驗證 localStorage 取出的顏色字串，防範 XSS 注入
+            const rawColor = localStorage.getItem('dogMap_userColor') || '';
+            const savedColor = /^#[0-9a-fA-F]{6}$/i.test(rawColor) ? rawColor : null;
 
             if (savedName) {
-                currentUserName = savedName;
+                currentUserName = escapeHTML(savedName); // 多加一層防護
                 dbUserColor = savedColor || generateRandomColor();
                 if (!savedColor) localStorage.setItem('dogMap_userColor', dbUserColor);
 
-                startupOverlay.style.display = 'none';
-                statusToast.classList.remove('hidden');
-                locateBtn.classList.remove('hidden');
-                spectatorBtn.classList.remove('hidden'); 
+                finishUIReveal();
                 toastText.innerText = isOfflineMode ? "離線定位中..." : "自動定位...";
-
                 startLocationServices(true);
             } else {
                 startupOverlay.style.display = 'flex';
@@ -522,6 +550,8 @@
             
             if (!name) name = `P${Math.floor(100 + Math.random() * 900)}`;
             currentUserName = name;
+            
+            // 生成安全的 hex 色碼
             dbUserColor = generateRandomColor();
 
             localStorage.setItem('dogMap_userName', currentUserName);
@@ -529,6 +559,155 @@
 
             startLocationServices(false);
         });
+
+        // --- 切換圖層(迷霧)開關邏輯 ---
+        toggleFogBtn.addEventListener('click', () => {
+            isFogVisible = !isFogVisible;
+            map.getPane('fogPane').style.display = isFogVisible ? 'block' : 'none';
+            
+            if (isFogVisible) {
+                toggleFogBtn.innerText = "👁️ 關閉迷霧";
+                toggleFogBtn.style.backgroundColor = "#f59e0b"; // 恢復黃色
+                requestFogRender();
+            } else {
+                toggleFogBtn.innerText = "🌫️ 開啟迷霧";
+                toggleFogBtn.style.backgroundColor = "#9ca3af"; // 變成灰色提醒已關閉
+            }
+        });
+
+        // --- 導航標記(拖曳功能)邏輯 ---
+        navPinBtn.addEventListener('click', () => {
+            if (navMarker) {
+                // 如果已經有標記，則移除
+                map.removeLayer(navMarker);
+                navMarker = null;
+                navPinBtn.innerText = "📍 導航標記";
+                navPinBtn.style.backgroundColor = "#f59e0b";
+                navPinBtn.style.color = "#1a202c";
+            } else {
+                // 如果沒有標記，在畫面中央建立一個可拖曳標記
+                const center = map.getCenter();
+                navMarker = L.marker(center, {
+                    draggable: true,
+                    zIndexOffset: 10000,
+                    icon: L.divIcon({
+                        className: 'custom-div-icon',
+                        html: `<div style="font-size: 36px; filter: drop-shadow(2px 2px 0px #1a202c); margin-top: -36px; margin-left: -18px; cursor: grab;">🎯</div>`,
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0]
+                    })
+                }).addTo(map);
+
+                // 更新標記上的 Popup (包含導航按鈕)
+                const updatePopup = () => {
+                    const pos = navMarker.getLatLng();
+                    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${pos.lat},${pos.lng}`;
+                    navMarker.bindPopup(`
+                        <div class="text-center font-bold p-2">
+                            <p class="mb-2 text-xs text-gray-800 border-b-2 border-black pb-1">拖曳標靶調整位置</p>
+                            <a href="${gmapsUrl}" target="_blank" class="pixel-btn px-4 py-2 mt-2 text-sm inline-block no-underline bg-blue-500 text-white border-black w-full shadow-[4px_4px_0px_#1a202c]">
+                                🚀 導航至此
+                            </a>
+                        </div>
+                    `, {
+                        className: 'pixel-popup',
+                        closeButton: false,
+                        offset: [0, -40]
+                    }).openPopup();
+                };
+
+                // 綁定拖曳結束事件
+                navMarker.on('dragend', updatePopup);
+                // 創建後立刻顯示導航視窗
+                updatePopup();
+
+                navPinBtn.innerText = "❌ 移除標記";
+                navPinBtn.style.backgroundColor = "#ef4444";
+                navPinBtn.style.color = "white";
+            }
+        });
+
+        // --- 強制打卡(手動上傳)按鈕邏輯 ---
+        forceUploadBtn.addEventListener('click', () => {
+            if (isSpectatorMode) {
+                showModal("觀看模式下無法上傳位置！\n請先退出觀看模式。");
+                return;
+            }
+
+            forceUploadBtn.innerText = "⏳ 獲取中...";
+            forceUploadBtn.style.backgroundColor = "#9ca3af";
+
+            if (!navigator.geolocation) {
+                showModal("您的瀏覽器不支援定位功能。");
+                resetForceUploadBtn();
+                return;
+            }
+
+            // maximumAge: 0 強制要求不使用快取，取得當下最新位置
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const timestamp = Date.now();
+
+                    // 強制寫入歷史軌跡
+                    const newPoint = { lat, lng, timestamp };
+                    localHistory.push(newPoint);
+                    lastSavedPos = newPoint;
+
+                    const twelveHoursAgo = timestamp - 12 * 60 * 60 * 1000;
+                    localHistory = localHistory.filter(p => p.timestamp > twelveHoursAgo);
+                    if (localHistory.length > 800) localHistory = localHistory.slice(-800);
+
+                    const myUid = currentUser ? currentUser.uid : 'local_user';
+                    allUsersData[myUid] = {
+                        userName: currentUserName || "我",
+                        color: dbUserColor || "#ef4444",
+                        history: [...localHistory],
+                        lastUpdate: Date.now()
+                    };
+                    
+                    map.setView([lat, lng], 17, { animate: true });
+                    renderMap(); 
+
+                    // 強制上傳 Firebase
+                    if (isSystemReady && currentUser) {
+                        try {
+                            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
+                            const optimizedHistory = localHistory.slice(-50);
+                            await setDoc(docRef, {
+                                userName: currentUserName,
+                                color: dbUserColor,
+                                history: optimizedHistory,
+                                lastUpdate: Date.now()
+                            }, { merge: true });
+                            
+                            document.getElementById('sync-ping').style.backgroundColor = 'white';
+                            setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
+                            toastText.innerText = "強制打卡成功";
+                            showModal("✅ 已成功獲取並上傳您目前的位置！");
+                        } catch (e) {
+                            console.error("Force Upload Error", e);
+                            showModal("上傳失敗，請檢查網路狀態。");
+                        }
+                    } else {
+                        showModal("尚未連線到伺服器，僅更新本機位置。");
+                    }
+                    resetForceUploadBtn();
+                },
+                (error) => {
+                    resetForceUploadBtn();
+                    // 呼叫統一的錯誤處理（處理沒權限、被拒絕等狀況）
+                    handleGeoError(error, false); 
+                },
+                { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+            );
+        });
+
+        function resetForceUploadBtn() {
+            forceUploadBtn.innerText = "📤 強制打卡";
+            forceUploadBtn.style.backgroundColor = "#f59e0b";
+        }
 
         // --- 觀看模式按鈕邏輯 ---
         spectatorBtn.addEventListener('click', () => {
@@ -564,7 +743,6 @@
                 return;
             }
 
-            // 【修復2】：獲取初始位置 (保證第一次一定抓得到)
             navigator.geolocation.getCurrentPosition(
                 (position) => {
                     if (isSpectatorMode) return; 
@@ -588,16 +766,18 @@
                 },
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
             );
-
-            // 【修復2】移除了 Leaflet 原生的 map.locate，避免跟瀏覽器原生定位互相搶奪觸發順序
         }
 
+        // 統一顯示 UI 按鈕
         function finishUIReveal() {
             startupOverlay.style.opacity = '0';
             setTimeout(() => { startupOverlay.style.display = 'none'; }, 300);
             statusToast.classList.remove('hidden');
             locateBtn.classList.remove('hidden');
             spectatorBtn.classList.remove('hidden');
+            toggleFogBtn.classList.remove('hidden');
+            navPinBtn.classList.remove('hidden');
+            forceUploadBtn.classList.remove('hidden');
             toastText.innerText = "位置同步成功";
         }
 
@@ -608,7 +788,6 @@
                 map.setView([lat, lng], 17); 
             }
 
-            // 【修復1：心跳機制】判斷是否需要強制上傳
             let shouldUpload = false;
 
             if (lastSavedPos) {
@@ -616,14 +795,14 @@
                 const timeElapsed = timestamp - lastSavedPos.timestamp;
                 
                 if (dist >= 100) {
-                    shouldUpload = true; // 移動超過 100 公尺，正常上傳
+                    shouldUpload = true; 
                 } else if (timeElapsed >= 3 * 60 * 1000) {
-                    shouldUpload = true; // 即使沒移動，每 3 分鐘也強制「打卡」上傳一次，避免因為停留在原地太久而從地圖消失
+                    shouldUpload = true; 
                 } else {
-                    return; // 距離沒到且時間沒到，忽略此座標節省效能
+                    return; 
                 }
             } else {
-                shouldUpload = true; // 第一次啟動，必須上傳
+                shouldUpload = true; 
             }
 
             const newPoint = { lat, lng, timestamp };
@@ -772,6 +951,9 @@
                 statusToast.classList.add('hidden');
                 locateBtn.classList.add('hidden');
                 spectatorBtn.classList.add('hidden');
+                toggleFogBtn.classList.add('hidden');
+                navPinBtn.classList.add('hidden');
+                forceUploadBtn.classList.add('hidden');
             }
             
             let msg = "無定位權限。請至手機設定中確認。";
