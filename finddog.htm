@@ -241,6 +241,17 @@
         const customModalText = document.getElementById('custom-modal-text');
         const customModalBtn = document.getElementById('custom-modal-btn');
 
+        // --- 防 XSS 攻擊的字元轉義函式 ---
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // --- 自訂 Modal 邏輯取代 alert ---
         function showModal(msg) {
             customModalText.innerText = msg;
@@ -712,10 +723,13 @@
                 const age = Math.max(0, now - lastPoint.timestamp);
 
                 if (age < ONE_HOUR) { 
-                    const renderColor = isSelf ? '#ef4444' : (userData.color || '#3b82f6');
+                    // 【防 XSS 處理】將遠端讀取的名稱與顏色轉義，確保安全
+                    const safeUserName = escapeHTML(userData.userName);
+                    const safeRenderColor = escapeHTML(isSelf ? '#ef4444' : (userData.color || '#3b82f6'));
+
                     const avatarHtml = isSelf 
                         ? `<div class="user-avatar-pixel blinking-red-pixel"></div>`
-                        : `<div class="user-avatar-pixel" style="background-color: ${renderColor};"></div>`;
+                        : `<div class="user-avatar-pixel" style="background-color: ${safeRenderColor};"></div>`;
                     
                     const nameColor = isSelf ? 'color: #ef4444;' : 'color: #1a202c;';
 
@@ -723,7 +737,7 @@
                         className: 'custom-div-icon',
                         html: `
                             <div class="user-label-container">
-                                <div class="user-name-tag pixel-panel" style="${nameColor}">${userData.userName}</div>
+                                <div class="user-name-tag pixel-panel" style="${nameColor}">${safeUserName}</div>
                                 ${avatarHtml}
                             </div>
                         `,
