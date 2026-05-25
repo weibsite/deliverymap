@@ -152,6 +152,14 @@
         </div>
     </div>
 
+    <!-- 自訂訊息對話框 (取代 alert) -->
+    <div id="custom-modal" class="hidden absolute inset-0 z-[5000] bg-black/80 flex items-center justify-center p-4">
+        <div class="pixel-panel p-6 w-full max-w-sm text-center">
+            <p id="custom-modal-text" class="text-gray-900 font-bold mb-6 text-sm leading-relaxed"></p>
+            <button id="custom-modal-btn" class="pixel-btn w-full py-2">確定</button>
+        </div>
+    </div>
+
     <!-- 常駐 UI 元件 -->
     <div id="status-toast" class="absolute top-4 right-4 z-[2000] pixel-panel p-2 text-sm font-bold text-gray-900 hidden flex items-center gap-2">
         <div class="w-3 h-3 bg-green-500 border-2 border-black" id="sync-ping"></div>
@@ -229,6 +237,19 @@
         const toastText = document.getElementById('toast-text');
         const locateBtn = document.getElementById('locate-btn');
         const spectatorBtn = document.getElementById('spectator-btn');
+        const customModal = document.getElementById('custom-modal');
+        const customModalText = document.getElementById('custom-modal-text');
+        const customModalBtn = document.getElementById('custom-modal-btn');
+
+        // --- 自訂 Modal 邏輯取代 alert ---
+        function showModal(msg) {
+            customModalText.innerText = msg;
+            customModal.classList.remove('hidden');
+        }
+
+        customModalBtn.addEventListener('click', () => {
+            customModal.classList.add('hidden');
+        });
 
         function generateRandomColor() {
             const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f97316', '#ec4899', '#06b6d4'];
@@ -292,15 +313,21 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
                 
-                appId = 'my-global-dog-map-room';
+                appId = typeof __app_id !== 'undefined' ? __app_id : 'my-global-dog-map-room';
 
-                try {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) {
+                        console.error("Auth Error", e);
                     }
-                } catch(e) { console.error("Auth error", e); }
+                };
+                
+                await initAuth();
 
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
@@ -457,11 +484,6 @@
                                 fogCtx.globalAlpha = opacity;
                                 fogCtx.fillStyle = renderColor;
                                 fogCtx.fillRect(pt.x - 4, pt.y - 4, 8, 8);
-                                
-                                // 移除粗框，讓歷史軌跡能連成一條純色的線
-                                // fogCtx.lineWidth = 2;
-                                // fogCtx.strokeStyle = '#1a202c';
-                                // fogCtx.strokeRect(pt.x - 4, pt.y - 4, 8, 8);
                             }
                         }
                     }
@@ -524,7 +546,7 @@
                     navigator.geolocation.clearWatch(watchId);
                     watchId = null;
                 }
-                map.stopLocate(); // 【修復】：停止 Leaflet 內建的定位監聽器
+                map.stopLocate(); 
                 
                 // 飛往走失中心區域
                 map.setView(LOST_DOG_CENTER, 13, { animate: true });
@@ -566,7 +588,12 @@
                     if (isSpectatorMode) return;
                     handleValidPosition(position.coords.latitude, position.coords.longitude, Date.now());
                 },
-                (error) => { console.warn("Watch Geo Error:", error); },
+                (error) => { 
+                    console.warn("Watch Geo Error:", error);
+                    // 【修復跳窗】：不在持續監聽中觸發錯誤視窗，僅更新狀態燈號
+                    document.getElementById('sync-ping').style.backgroundColor = '#ef4444';
+                    toastText.innerText = "定位訊號較弱...";
+                },
                 { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
             );
 
@@ -585,7 +612,9 @@
         function onLocationFound(e) {
             handleValidPosition(e.latlng.lat, e.latlng.lng, Date.now());
         }
-        function onLocationError(e) {}
+        function onLocationError(e) {
+            // Leaflet 的持續定位錯誤，同樣不報錯，以免干擾用戶
+        }
 
         function handleValidPosition(lat, lng, timestamp) {
             if (isSpectatorMode) return; 
@@ -624,15 +653,20 @@
             if (!isSystemReady || !currentUser || localHistory.length === 0 || isSpectatorMode) return;
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'locations', currentUser.uid);
             try {
+                // 【優化節省頻寬】：本地雖然保留 800 筆，但只上傳最後 50 筆給其他玩家看
+                // 這樣可以大幅減少每次移動時，全體監聽者需要下載的陣列大小。
+                const optimizedHistory = localHistory.slice(-50);
+
                 await setDoc(docRef, {
                     userName: currentUserName,
                     color: dbUserColor,
-                    history: localHistory,
+                    history: optimizedHistory,
                     lastUpdate: Date.now()
                 }, { merge: true });
                 
                 document.getElementById('sync-ping').style.backgroundColor = 'white';
                 setTimeout(() => document.getElementById('sync-ping').style.backgroundColor = '#10b981', 300);
+                toastText.innerText = "位置同步成功";
             } catch (e) {
                 console.error("Firestore Upload Error", e);
             }
@@ -640,6 +674,7 @@
 
         // --- 4. 監聽與標記渲染 ---
         function listenToAllLocations() {
+            if (!currentUser) return;
             const collectionRef = collection(db, 'artifacts', appId, 'public', 'data', 'locations');
             onSnapshot(collectionRef, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
@@ -651,7 +686,6 @@
                 renderMap();
             }, (error) => {
                 console.error("即時資料監聽失敗:", error);
-                showError("無法讀取其他玩家資料。請確保 Firebase Firestore 規則已設定為測試模式！", false);
             });
         }
 
@@ -730,7 +764,6 @@
         });
 
         function handleGeoError(error, isAutoStart) {
-            // 【修復】：如果是觀看模式，直接中斷處理，不要再跳出逾時警告
             if (isSpectatorMode) return; 
 
             masterStartBtn.innerText = "START [重新授權]";
@@ -746,7 +779,7 @@
             let isCopyable = false;
 
             if (error.code === 1) { 
-                msg = "⚠️ 缺少定位權限！<br><br>若您使用 LINE 或 FB 直接開啟，將無法使用地圖。<br><br>👉 <span style='text-decoration:underline;'>點此複製網址</span> 👈<br>請改用 Safari 或 Chrome 貼上開啟。";
+                msg = "⚠️ 缺少定位權限！\n\n若您使用 LINE 或 FB 直接開啟，將無法使用地圖。\n\n👉 點此複製網址 👈\n請改用 Safari 或 Chrome 貼上開啟。";
                 isCopyable = true;
             } else if (error.code === 2) {
                 msg = "無法獲取位置，請確認 GPS 已開啟。";
@@ -757,11 +790,13 @@
         }
 
         function showError(msg, isCopyable = false) {
-            errorMsg.innerHTML = msg;
+            // 在歡迎畫面上顯示錯誤文字
+            errorMsg.innerText = msg.replace(/\n/g, ' ');
             errorMsg.classList.remove('hidden');
             
             if (isCopyable) {
-                errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed";
+                errorMsg.className = "text-red-700 font-bold text-sm mt-6 bg-red-100 p-4 rounded-lg cursor-pointer border-2 border-red-500 border-dashed hover:bg-red-200 transition-colors block leading-relaxed whitespace-pre-wrap";
+                errorMsg.innerText = msg; // 保留換行
                 errorMsg.onclick = () => {
                     const textArea = document.createElement("textarea");
                     textArea.value = window.location.href;
@@ -769,19 +804,21 @@
                     textArea.select();
                     try {
                         document.execCommand('copy');
-                        alert("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
+                        // 【修復】：改用 showModal 取代 alert
+                        showModal("✅ 網址已複製！\n\n請打開您的 Chrome 或 Safari 瀏覽器並貼上網址繼續探索。");
                     } catch (err) {
-                        alert("複製失敗，請手動複製上方網址。");
+                        showModal("複製失敗，請手動複製上方網址。");
                     }
                     document.body.removeChild(textArea);
                 };
             } else {
-                errorMsg.className = "text-red-600 font-bold text-sm mt-4 block";
+                errorMsg.className = "text-red-600 font-bold text-sm mt-4 block whitespace-pre-wrap";
                 errorMsg.onclick = null;
             }
             
+            // 【修復】：隱藏啟動畫面時的錯誤通知改用 custom modal
             if (startupOverlay.style.display === 'none') {
-                alert(msg.replace(/<br>/g, '\n').replace(/<[^>]+>/g, ''));
+                showModal(msg.replace(/<[^>]+>/g, ''));
             }
         }
 
